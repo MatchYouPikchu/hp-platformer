@@ -612,7 +612,7 @@ class UI:
             if p1.is_alive():
                 self.draw_health_bar(screen, 65, 38, p1.health, p1.max_health, LIGHT_BLUE)
                 # Special ready indicator with seconds remaining
-            if p1.special_cooldown <= 0:
+                if p1.special_cooldown <= 0:
                     # Pulse effect when ready
                     pulse = int(abs(math.sin(self.anim_timer * 0.1)) * 50) + 205
                     pygame.draw.rect(screen, (pulse, int(pulse * 0.85), 0), (65, 62, 80, 14), border_radius=4)
