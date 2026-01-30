@@ -941,87 +941,425 @@ class Level:
         self.decorations.append(Decoration(3950, ground_y, 'goal_flag'))
 
     def draw_background(self, screen, camera_x):
-        """Draw enhanced parallax background with area-specific themes."""
-        # Get current story area for theming
+        """Draw enhanced parallax background with SMOOTH area transitions."""
+        t = pygame.time.get_ticks()
+
+        # Get current and nearby story areas for smooth blending
         current_area = self.get_story_area(camera_x) if self.story_areas else None
         area_name = current_area[0] if current_area else ""
-        
-        # Area-specific sky gradients for Level 1
-        if self.level_num == 1:
-            if "PRIVET" in area_name:
-                # Suburban evening - orange/purple sunset
-                sky_top = (60, 30, 60)
-                sky_bottom = (100, 60, 70)
-            elif "PLATFORM" in area_name:
-                # Train station - steamy, warm
-                sky_top = (40, 35, 50)
-                sky_bottom = (70, 60, 80)
-            elif "HOGWARTS GROUNDS" in area_name:
-                # Beautiful Hogwarts night - deep blue
-                sky_top = (15, 25, 55)
-                sky_bottom = (35, 50, 90)
-            elif "FORBIDDEN" in area_name or "FLUFFY" in area_name:
-                # Creepy corridor - dark and ominous
-                sky_top = (20, 15, 30)
-                sky_bottom = (40, 30, 45)
-            elif "TRAPDOOR" in area_name or "CHESS" in area_name:
-                # Underground chambers - very dark
-                sky_top = (10, 10, 20)
-                sky_bottom = (25, 20, 35)
-            elif "FINAL" in area_name or "QUIRRELL" in area_name:
-                # Final chamber - fiery/dangerous
-                sky_top = (30, 10, 15)
-                sky_bottom = (60, 25, 30)
+
+        # Calculate transition blend factor for smooth area changes
+        blend_factor = 1.0  # 1.0 = fully in current area
+        next_area_name = ""
+        transition_width = 200  # Pixels over which to blend
+
+        # Find if we're near an area boundary
+        for i, (start_x, end_x, name, subtitle) in enumerate(self.story_areas):
+            # Check if near the end of current area (transitioning to next)
+            if camera_x >= end_x - transition_width and camera_x < end_x:
+                if i + 1 < len(self.story_areas):
+                    next_area_name = self.story_areas[i + 1][2]
+                    blend_factor = (end_x - camera_x) / transition_width
+                    break
+            # Check if near the start of current area (transitioning from previous)
+            elif camera_x >= start_x and camera_x < start_x + transition_width:
+                if i > 0:
+                    next_area_name = self.story_areas[i - 1][2]
+                    blend_factor = (camera_x - start_x) / transition_width
+                    break
+
+        # Determine if areas are indoor/outdoor
+        def is_indoor_area(name):
+            return any(x in name for x in ["FLUFFY", "TRAPDOOR", "CHESS", "FINAL", "QUIRRELL", "CORRIDOR", "CHAMBER"])
+
+        is_indoor = is_indoor_area(area_name)
+        next_is_indoor = is_indoor_area(next_area_name) if next_area_name else is_indoor
+        is_great_hall = "GREAT" in area_name or "HALL" in area_name
+
+        # Indoor transition factor (0 = fully outdoor, 1 = fully indoor)
+        if is_indoor and next_is_indoor:
+            indoor_factor = 1.0
+        elif not is_indoor and not next_is_indoor:
+            indoor_factor = 0.0
+        elif is_indoor and not next_is_indoor:
+            indoor_factor = blend_factor
+        else:  # not is_indoor and next_is_indoor
+            indoor_factor = 1.0 - blend_factor
+
+        # Get color schemes for current and potentially blending areas
+        def get_area_colors(name):
+            if "PRIVET" in name:
+                return (60, 30, 60), (100, 60, 70)
+            elif "PLATFORM" in name:
+                return (40, 35, 50), (70, 60, 80)
+            elif "HOGWARTS GROUNDS" in name:
+                return (15, 25, 55), (35, 50, 90)
+            elif "FORBIDDEN" in name or "FLUFFY" in name:
+                return (20, 15, 30), (40, 30, 45)
+            elif "TRAPDOOR" in name or "CHESS" in name:
+                return (10, 10, 20), (25, 20, 35)
+            elif "FINAL" in name or "QUIRRELL" in name:
+                return (30, 10, 15), (60, 25, 30)
             else:
-                sky_top = (20, 30, 60)
-                sky_bottom = (50, 60, 100)
-        else:
+                return (20, 30, 60), (50, 60, 100)
+
+        # Get current and next area colors
+        sky_top, sky_bottom = get_area_colors(area_name)
+
+        # Blend colors if transitioning
+        if next_area_name and blend_factor < 1.0:
+            next_top, next_bottom = get_area_colors(next_area_name)
+            sky_top = tuple(int(sky_top[i] * blend_factor + next_top[i] * (1 - blend_factor)) for i in range(3))
+            sky_bottom = tuple(int(sky_bottom[i] * blend_factor + next_bottom[i] * (1 - blend_factor)) for i in range(3))
+
+        if self.level_num != 1:
             sky_top = (15, 15, 25)
             sky_bottom = (35, 30, 50)
 
-        for y in range(0, SCREEN_HEIGHT, 2):
-            ratio = y / SCREEN_HEIGHT
+        # Draw gradient background
+        for y_pos in range(0, SCREEN_HEIGHT, 2):
+            ratio = y_pos / SCREEN_HEIGHT
             r = int(sky_top[0] + ratio * (sky_bottom[0] - sky_top[0]))
             g = int(sky_top[1] + ratio * (sky_bottom[1] - sky_top[1]))
             b = int(sky_top[2] + ratio * (sky_bottom[2] - sky_top[2]))
-            pygame.draw.rect(screen, (r, g, b), (0, y, SCREEN_WIDTH, 2))
+            pygame.draw.rect(screen, (r, g, b), (0, y_pos, SCREEN_WIDTH, 2))
 
-        # Stars (slow parallax)
-        star_offset = int(camera_x * 0.03) % 200
-        random.seed(42)  # Consistent star positions
-        for i in range(25):
-            star_x = (i * 120 + random.randint(0, 80) - star_offset) % (SCREEN_WIDTH + 400) - 200
-            star_y = 20 + random.randint(0, 200)
-            size = 1 + random.randint(0, 1)
-            twinkle = abs(math.sin(pygame.time.get_ticks() * 0.002 + i)) * 0.5 + 0.5
-            color = tuple(int(255 * twinkle) for _ in range(3))
-            pygame.draw.circle(screen, color, (int(star_x), star_y), size)
+        # SMOOTH TRANSITION between indoor/outdoor using alpha blending
+        # Draw outdoor elements first (faded if transitioning to indoor)
+        outdoor_alpha = int(255 * (1.0 - indoor_factor))
+        indoor_alpha = int(255 * indoor_factor)
+
+        # Create surfaces for blending
+        if outdoor_alpha > 10:
+            # OUTDOOR - Stars, moon, distant castle
+            # Stars (slow parallax)
+            star_offset = int(camera_x * 0.03) % 200
+            random.seed(42)
+            for i in range(30):
+                star_x = (i * 100 + random.randint(0, 80) - star_offset) % (SCREEN_WIDTH + 400) - 200
+                star_y = 15 + random.randint(0, 180)
+                size = 1 + random.randint(0, 1)
+                twinkle = abs(math.sin(t * 0.002 + i)) * 0.5 + 0.5
+                color = tuple(int(255 * twinkle) for _ in range(3))
+                pygame.draw.circle(screen, color, (int(star_x), star_y), size)
+            random.seed()
+
+            # Beautiful moon with glow
+            moon_x = 750 - int(camera_x * 0.02)
+            if -100 < moon_x < SCREEN_WIDTH + 100:
+                # Moon glow
+                glow_surf = pygame.Surface((140, 140), pygame.SRCALPHA)
+                glow_pulse = int(abs(math.sin(t * 0.001)) * 20)
+                for i in range(5):
+                    alpha = 30 - i * 5 + glow_pulse // 5
+                    pygame.draw.circle(glow_surf, (200, 210, 230, alpha), (70, 70), 60 - i * 8)
+                screen.blit(glow_surf, (moon_x - 70, 20))
+
+                # Moon body
+                pygame.draw.circle(screen, (235, 235, 220), (moon_x, 90), 50)
+                pygame.draw.circle(screen, (220, 220, 200), (moon_x - 15, 80), 42)
+                # Craters with depth
+                pygame.draw.circle(screen, (210, 210, 195), (moon_x + 15, 100), 8)
+                pygame.draw.circle(screen, (200, 200, 185), (moon_x + 16, 101), 6)
+                pygame.draw.circle(screen, (210, 210, 195), (moon_x - 5, 75), 6)
+                pygame.draw.circle(screen, (215, 215, 200), (moon_x + 25, 80), 4)
+
+            # Distant Hogwarts castle silhouette
+            castle_offset = int(camera_x * 0.08)
+            self._draw_distant_castle(screen, castle_offset, t)
+
+            # Distant mountains/hills (medium parallax)
+            hill_offset = int(camera_x * 0.15)
+            for layer in range(2):
+                layer_offset = layer * 50
+                if self.level_num == 1:
+                    color = (40 + layer * 15, 45 + layer * 15, 60 + layer * 15)
+                else:
+                    color = (30 + layer * 10, 30 + layer * 10, 40 + layer * 10)
+                for i in range(12):
+                    hx = i * 220 - ((hill_offset + layer_offset) % 220) - 100
+                    height = 120 + (i % 4) * 35 + layer * 30
+                    pygame.draw.polygon(screen, color, [
+                        (hx, SCREEN_HEIGHT),
+                        (hx + 60, SCREEN_HEIGHT - height),
+                        (hx + 120, SCREEN_HEIGHT - height + 20),
+                        (hx + 180, SCREEN_HEIGHT - height - 10),
+                        (hx + 240, SCREEN_HEIGHT)
+                    ])
+
+        # INDOOR elements with smooth blending
+        if indoor_alpha > 10:
+            # Create semi-transparent surface for indoor elements
+            if indoor_factor < 1.0:
+                indoor_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                self._draw_stone_walls(indoor_surf, camera_x, t)
+                self._draw_torches(indoor_surf, camera_x, t)
+
+                if "CHESS" in area_name:
+                    self._draw_chess_room_decor(indoor_surf, camera_x, t)
+                elif "FINAL" in area_name or "QUIRRELL" in area_name:
+                    self._draw_final_chamber_decor(indoor_surf, camera_x, t)
+
+                # Apply alpha and blit
+                indoor_surf.set_alpha(indoor_alpha)
+                screen.blit(indoor_surf, (0, 0))
+            else:
+                # Fully indoor - draw directly
+                self._draw_stone_walls(screen, camera_x, t)
+                self._draw_torches(screen, camera_x, t)
+
+                if "CHESS" in area_name:
+                    self._draw_chess_room_decor(screen, camera_x, t)
+                elif "FINAL" in area_name or "QUIRRELL" in area_name:
+                    self._draw_final_chamber_decor(screen, camera_x, t)
+
+        # Floating candles for indoor/Great Hall areas (with fade)
+        if indoor_factor > 0.3:
+            self._draw_floating_candles(screen, camera_x, t, alpha=int(255 * min(1.0, indoor_factor * 1.5)))
+
+    def _draw_stone_walls(self, screen, camera_x, t):
+        """Draw detailed stone wall background."""
+        wall_offset = int(camera_x * 0.5) % 64
+
+        # Stone colors with variation
+        stone_base = (60, 55, 65)
+        stone_dark = (40, 38, 48)
+        stone_light = (80, 75, 88)
+        mortar = (35, 32, 40)
+
+        # Draw stone brick pattern
+        for row in range(0, SCREEN_HEIGHT // 32 + 1):
+            for col in range(-1, SCREEN_WIDTH // 64 + 2):
+                bx = col * 64 - wall_offset + (32 if row % 2 else 0)
+                by = row * 32
+
+                # Skip if off screen
+                if bx > SCREEN_WIDTH + 32 or bx < -64:
+                    continue
+
+                # Stone variation based on position
+                variation = ((row * 7 + col * 13) % 20) - 10
+                stone_color = tuple(max(0, min(255, c + variation)) for c in stone_base)
+
+                # Main stone block
+                pygame.draw.rect(screen, stone_color, (bx + 2, by + 2, 60, 28))
+
+                # Shading - darker left/top edge
+                pygame.draw.rect(screen, stone_dark, (bx + 2, by + 2, 60, 6))
+                pygame.draw.rect(screen, stone_dark, (bx + 2, by + 2, 8, 28))
+
+                # Highlight - lighter right/bottom
+                pygame.draw.line(screen, stone_light, (bx + 58, by + 8), (bx + 58, by + 28), 2)
+                pygame.draw.line(screen, stone_light, (bx + 10, by + 26), (bx + 58, by + 26), 2)
+
+                # Stone texture - random cracks
+                if (row + col) % 5 == 0:
+                    crack_x = bx + 15 + (row * 3) % 30
+                    pygame.draw.line(screen, stone_dark, (crack_x, by + 8),
+                                   (crack_x + 8, by + 20), 1)
+                if (row + col) % 7 == 0:
+                    pygame.draw.circle(screen, stone_dark, (bx + 40, by + 15), 3)
+
+        # Mortar lines
+        for row in range(0, SCREEN_HEIGHT // 32 + 2):
+            pygame.draw.line(screen, mortar, (0, row * 32), (SCREEN_WIDTH, row * 32), 2)
+
+        # Moss/vine patches on walls
+        moss_offset = int(camera_x * 0.4) % 200
+        random.seed(123)
+        for i in range(8):
+            moss_x = (i * 180 - moss_offset) % (SCREEN_WIDTH + 200) - 100
+            moss_y = 50 + random.randint(0, 150)
+            moss_color = (30 + random.randint(0, 20), 60 + random.randint(0, 30), 25)
+
+            # Hanging vines
+            for v in range(random.randint(2, 5)):
+                vine_x = moss_x + v * 8
+                vine_len = 30 + random.randint(0, 40)
+                wave = int(math.sin(t * 0.002 + v) * 3)
+                pygame.draw.line(screen, moss_color, (vine_x, moss_y),
+                               (vine_x + wave, moss_y + vine_len), 2)
+                # Leaves
+                for leaf in range(vine_len // 15):
+                    ly = moss_y + leaf * 15 + 10
+                    lx = vine_x + int(math.sin(t * 0.002 + leaf) * 2)
+                    pygame.draw.ellipse(screen, moss_color, (lx - 3, ly, 6, 4))
         random.seed()
 
-        # Moon with craters
-        moon_x = 750 - int(camera_x * 0.02)
-        if -80 < moon_x < SCREEN_WIDTH + 80:
-            pygame.draw.circle(screen, (235, 235, 220), (moon_x, 90), 50)
-            pygame.draw.circle(screen, (220, 220, 200), (moon_x - 15, 80), 42)
-            # Craters
-            pygame.draw.circle(screen, (210, 210, 195), (moon_x + 15, 100), 8)
-            pygame.draw.circle(screen, (210, 210, 195), (moon_x - 5, 75), 6)
+    def _draw_torches(self, screen, camera_x, t):
+        """Draw wall-mounted torches with animated flames."""
+        torch_spacing = 250
+        torch_offset = int(camera_x) % torch_spacing
 
-        # Distant mountains/hills (medium parallax)
-        hill_offset = int(camera_x * 0.15)
-        for layer in range(2):
-            layer_offset = layer * 50
-            color = (40 + layer * 15, 45 + layer * 15, 60 + layer * 15) if self.level_num == 1 else (30 + layer * 10, 30 + layer * 10, 40 + layer * 10)
-            for i in range(12):
-                hx = i * 220 - ((hill_offset + layer_offset) % 220) - 100
-                height = 120 + (i % 4) * 35 + layer * 30
-                pygame.draw.polygon(screen, color, [
-                    (hx, SCREEN_HEIGHT),
-                    (hx + 60, SCREEN_HEIGHT - height),
-                    (hx + 120, SCREEN_HEIGHT - height + 20),
-                    (hx + 180, SCREEN_HEIGHT - height - 10),
-                    (hx + 240, SCREEN_HEIGHT)
-                ])
+        for i in range(-1, SCREEN_WIDTH // torch_spacing + 2):
+            tx = i * torch_spacing - torch_offset + 50
+            ty = 120
+
+            if tx < -50 or tx > SCREEN_WIDTH + 50:
+                continue
+
+            # Torch bracket (metal)
+            pygame.draw.rect(screen, (60, 50, 45), (tx - 4, ty, 8, 30))
+            pygame.draw.rect(screen, (80, 70, 60), (tx - 6, ty + 25, 12, 8))
+            pygame.draw.rect(screen, (50, 40, 35), (tx - 4, ty, 8, 30), 1)
+
+            # Torch handle
+            pygame.draw.rect(screen, (100, 70, 45), (tx - 3, ty - 20, 6, 25))
+            pygame.draw.rect(screen, (80, 55, 35), (tx - 3, ty - 20, 2, 25))
+
+            # Animated flame
+            flame_flicker = int(math.sin(t * 0.015 + i * 2) * 4)
+            flame_colors = [
+                (255, 200, 50),   # Yellow core
+                (255, 150, 30),   # Orange mid
+                (255, 80, 20),    # Orange-red outer
+                (200, 50, 20),    # Red tip
+            ]
+
+            # Flame glow
+            glow_surf = pygame.Surface((60, 60), pygame.SRCALPHA)
+            glow_pulse = int(abs(math.sin(t * 0.01 + i)) * 30)
+            pygame.draw.circle(glow_surf, (255, 150, 50, 40 + glow_pulse), (30, 30), 28)
+            pygame.draw.circle(glow_surf, (255, 200, 100, 30 + glow_pulse), (30, 30), 20)
+            screen.blit(glow_surf, (tx - 30, ty - 50))
+
+            # Flame layers
+            for j, color in enumerate(flame_colors):
+                flame_h = 25 - j * 5 + flame_flicker
+                flame_w = 12 - j * 2
+                flame_y = ty - 20 - flame_h // 2
+                wave = int(math.sin(t * 0.02 + j + i) * 2)
+
+                pygame.draw.ellipse(screen, color,
+                                  (tx - flame_w // 2 + wave, flame_y, flame_w, flame_h))
+
+            # Sparks
+            if int(t / 100 + i * 37) % 5 == 0:
+                spark_x = tx + random.randint(-8, 8)
+                spark_y = ty - 35 - random.randint(0, 15)
+                pygame.draw.circle(screen, (255, 220, 100), (spark_x, spark_y), 2)
+
+    def _draw_floating_candles(self, screen, camera_x, t, alpha=255):
+        """Draw floating magical candles like in the Great Hall."""
+        candle_offset = int(camera_x * 0.6) % 150
+        random.seed(456)
+
+        # Create surface if alpha needed
+        if alpha < 255:
+            candle_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            target = candle_surf
+        else:
+            target = screen
+
+        for i in range(12):
+            cx = (i * 120 - candle_offset) % (SCREEN_WIDTH + 200) - 100
+            cy = 60 + random.randint(0, 100) + int(math.sin(t * 0.002 + i) * 8)
+
+            if cx < -30 or cx > SCREEN_WIDTH + 30:
+                continue
+
+            # Candle body (cream colored)
+            candle_h = 25 + random.randint(0, 15)
+            pygame.draw.rect(target, (250, 245, 230), (cx - 4, cy, 8, candle_h))
+            pygame.draw.rect(target, (230, 220, 200), (cx - 4, cy, 3, candle_h))
+            pygame.draw.rect(target, (255, 250, 240), (cx + 1, cy, 2, candle_h))
+
+            # Dripping wax
+            for d in range(random.randint(1, 3)):
+                drip_x = cx - 3 + d * 3
+                drip_y = cy + candle_h - 5
+                pygame.draw.ellipse(target, (250, 245, 230), (drip_x, drip_y, 4, 8))
+
+            # Flame with glow
+            flame_y = cy - 12
+            flame_flicker = int(math.sin(t * 0.018 + i * 1.5) * 3)
+
+            # Glow
+            glow_surf = pygame.Surface((30, 30), pygame.SRCALPHA)
+            glow_alpha = 50 + int(abs(math.sin(t * 0.012 + i)) * 30)
+            pygame.draw.circle(glow_surf, (255, 200, 100, glow_alpha), (15, 15), 14)
+            target.blit(glow_surf, (cx - 15, flame_y - 8))
+
+            # Flame
+            pygame.draw.ellipse(target, (255, 220, 100), (cx - 4 + flame_flicker, flame_y, 8, 14))
+            pygame.draw.ellipse(target, (255, 250, 200), (cx - 2 + flame_flicker, flame_y + 4, 4, 8))
+
+        random.seed()
+
+        # Blit with alpha if using separate surface
+        if alpha < 255:
+            candle_surf.set_alpha(alpha)
+            screen.blit(candle_surf, (0, 0))
+
+    def _draw_distant_castle(self, screen, offset, t):
+        """Draw distant Hogwarts castle silhouette."""
+        castle_x = 500 - offset
+        if castle_x < -300 or castle_x > SCREEN_WIDTH + 200:
+            return
+
+        castle_color = (35, 40, 55)
+        castle_light = (45, 50, 65)
+
+        # Main castle body
+        pygame.draw.rect(screen, castle_color, (castle_x, 180, 200, 120))
+
+        # Towers with pointed roofs
+        tower_positions = [
+            (castle_x - 20, 100, 40, 200),
+            (castle_x + 50, 120, 35, 180),
+            (castle_x + 120, 80, 45, 220),
+            (castle_x + 180, 110, 38, 190),
+        ]
+
+        for tx, ty, tw, th in tower_positions:
+            pygame.draw.rect(screen, castle_color, (tx, ty, tw, th))
+            # Pointed roof
+            pygame.draw.polygon(screen, castle_light, [
+                (tx - 5, ty), (tx + tw // 2, ty - 40), (tx + tw + 5, ty)
+            ])
+            # Windows (glowing)
+            for wy in range(ty + 20, ty + th - 30, 35):
+                glow = int(abs(math.sin(t * 0.001 + tx * 0.1 + wy * 0.05)) * 50)
+                pygame.draw.rect(screen, (180 + glow, 150 + glow, 80), (tx + tw // 2 - 4, wy, 8, 12))
+
+        # Main tower (tallest, center)
+        pygame.draw.rect(screen, castle_color, (castle_x + 80, 40, 50, 260))
+        pygame.draw.polygon(screen, castle_light, [
+            (castle_x + 75, 40), (castle_x + 105, -20), (castle_x + 135, 40)
+        ])
+
+    def _draw_chess_room_decor(self, screen, camera_x, t):
+        """Draw chess room specific decorations."""
+        # Checkered floor pattern hint in background
+        check_offset = int(camera_x * 0.3) % 80
+        for row in range(SCREEN_HEIGHT // 40, SCREEN_HEIGHT // 40 + 3):
+            for col in range(-1, SCREEN_WIDTH // 40 + 2):
+                cx = col * 40 - check_offset
+                cy = SCREEN_HEIGHT - 100 + row * 20
+                if (row + col) % 2 == 0:
+                    pygame.draw.rect(screen, (30, 30, 35), (cx, cy, 40, 20))
+                else:
+                    pygame.draw.rect(screen, (50, 50, 55), (cx, cy, 40, 20))
+
+    def _draw_final_chamber_decor(self, screen, camera_x, t):
+        """Draw final chamber decorations - mirror, flames, etc."""
+        # Eerie green/purple flames on sides
+        for side in [0, 1]:
+            fx = 50 if side == 0 else SCREEN_WIDTH - 50
+            fy = 150
+
+            # Flame pillar
+            pygame.draw.rect(screen, (40, 35, 50), (fx - 15, fy, 30, 200))
+
+            # Magical flames
+            flame_h = 40 + int(math.sin(t * 0.01 + side * 3) * 10)
+            colors = [(100, 0, 150), (80, 0, 120), (60, 0, 100)] if side == 0 else [(0, 150, 100), (0, 120, 80), (0, 100, 60)]
+
+            for j, color in enumerate(colors):
+                fh = flame_h - j * 10
+                fw = 20 - j * 4
+                wave = int(math.sin(t * 0.015 + j) * 4)
+                pygame.draw.ellipse(screen, color, (fx - fw // 2 + wave, fy - fh, fw, fh))
 
     def draw(self, screen, camera_x):
         """Draw the level."""

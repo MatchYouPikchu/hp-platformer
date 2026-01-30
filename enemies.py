@@ -686,178 +686,466 @@ class Enemy:
                 pygame.draw.circle(screen, (255, 255, 200), (px, py), 3)
 
     def _draw_walker(self, screen, screen_x, y):
-        """Draw a dark creature (dementor-like) with cartoon style."""
-        # Shadow/glow under
-        shadow_surf = pygame.Surface((ENEMY_WIDTH + 10, 10), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 60), (0, 0, ENEMY_WIDTH + 10, 10))
-        screen.blit(shadow_surf, (screen_x - 5, y + ENEMY_HEIGHT - 5))
-        
-        # Hooded robe body with outline
-        body_rect = (screen_x, y + 10, ENEMY_WIDTH, ENEMY_HEIGHT - 10)
-        pygame.draw.ellipse(screen, self.color, body_rect)
-        darker = tuple(max(0, c - 40) for c in self.color)
-        pygame.draw.ellipse(screen, darker, body_rect, 2)
-        
-        # Tattered bottom
-        for i in range(5):
-            tx = screen_x + 4 + i * 7
-            pygame.draw.polygon(screen, self.color, [(tx, y + ENEMY_HEIGHT - 5), (tx + 4, y + ENEMY_HEIGHT + 3), (tx + 8, y + ENEMY_HEIGHT - 5)])
-        
-        # Hood with depth
-        hood_outer = (screen_x + 3, y - 2, ENEMY_WIDTH - 6, 28)
-        hood_inner = (screen_x + 5, y, ENEMY_WIDTH - 10, 25)
-        pygame.draw.ellipse(screen, (20, 35, 20), hood_outer)
-        pygame.draw.ellipse(screen, (10, 20, 10), hood_inner)
-        
-        # Glowing eyes with glow effect
-        eye_x = screen_x + (22 if self.direction > 0 else 8)
-        # Glow
-        glow_surf = pygame.Surface((20, 12), pygame.SRCALPHA)
-        pygame.draw.ellipse(glow_surf, (*self.secondary_color, 80), (0, 0, 20, 12))
-        screen.blit(glow_surf, (eye_x - 2, y + 8))
-        # Eyes
-        pygame.draw.circle(screen, self.secondary_color, (eye_x, y + 12), 4)
-        pygame.draw.circle(screen, self.secondary_color, (eye_x + 10, y + 12), 4)
-        pygame.draw.circle(screen, (255, 255, 200), (eye_x, y + 12), 2)
-        pygame.draw.circle(screen, (255, 255, 200), (eye_x + 10, y + 12), 2)
+        """Draw a dark creature (dementor-like) with cel-shaded style."""
+        t = pygame.time.get_ticks()
+        w, h = ENEMY_WIDTH, ENEMY_HEIGHT
+
+        # Ethereal shadow/glow
+        shadow_surf = pygame.Surface((w + 20, 14), pygame.SRCALPHA)
+        pulse = int(abs(math.sin(t * 0.003)) * 30)
+        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 80 + pulse), (0, 0, w + 20, 14))
+        screen.blit(shadow_surf, (screen_x - 10, y + h - 6))
+
+        # Ghostly aura
+        aura_surf = pygame.Surface((w + 16, h + 10), pygame.SRCALPHA)
+        aura_alpha = 30 + int(math.sin(t * 0.004) * 15)
+        pygame.draw.ellipse(aura_surf, (30, 60, 30, aura_alpha), (0, 0, w + 16, h + 10))
+        screen.blit(aura_surf, (screen_x - 8, y - 5))
+
+        # Flowing tattered robes - multiple layers
+        robe_base = self.color
+        robe_dark = tuple(max(0, c - 50) for c in robe_base)
+        robe_light = tuple(min(255, c + 20) for c in robe_base)
+
+        # Main robe body
+        pygame.draw.ellipse(screen, robe_base, (screen_x + 2, y + 12, w - 4, h - 12))
+        # Dark shading on left
+        pygame.draw.ellipse(screen, robe_dark, (screen_x + 2, y + 15, 12, h - 20))
+        # Highlight on right
+        pygame.draw.arc(screen, robe_light, (screen_x + w - 18, y + 20, 14, h - 30), -1.5, 1.5, 3)
+
+        # Tattered bottom with flowing animation
+        tatter_wave = math.sin(t * 0.008)
+        for i in range(6):
+            tx = screen_x + 2 + i * 6
+            tatter_offset = int(math.sin(t * 0.006 + i * 0.8) * 3)
+            pygame.draw.polygon(screen, robe_base, [
+                (tx, y + h - 8),
+                (tx + 3 + tatter_offset, y + h + 5 + abs(tatter_offset)),
+                (tx + 6, y + h - 8)
+            ])
+            pygame.draw.polygon(screen, robe_dark, [
+                (tx, y + h - 8),
+                (tx + 3 + tatter_offset, y + h + 5 + abs(tatter_offset)),
+                (tx + 6, y + h - 8)
+            ], 1)
+
+        # Shadowy tendrils reaching out
+        for i in range(3):
+            tendril_x = screen_x + 10 + i * 12
+            tendril_wave = int(math.sin(t * 0.005 + i) * 4)
+            pygame.draw.line(screen, robe_dark,
+                           (tendril_x, y + h - 5),
+                           (tendril_x + tendril_wave, y + h + 8), 2)
+
+        # Deep hood with cel-shaded depth
+        hood_outer = (screen_x + 2, y - 4, w - 4, 30)
+        hood_mid = (screen_x + 5, y - 1, w - 10, 26)
+        hood_inner = (screen_x + 8, y + 2, w - 16, 22)
+        hood_void = (screen_x + 12, y + 6, w - 24, 16)
+
+        pygame.draw.ellipse(screen, (25, 45, 25), hood_outer)
+        pygame.draw.ellipse(screen, (18, 35, 18), hood_mid)
+        pygame.draw.ellipse(screen, (12, 25, 12), hood_inner)
+        pygame.draw.ellipse(screen, (5, 12, 5), hood_void)  # Dark void inside
+        pygame.draw.ellipse(screen, robe_dark, hood_outer, 2)
+
+        # Glowing menacing eyes with pulsing effect
+        eye_offset = 4 if self.direction > 0 else -4
+        eye_x = screen_x + w//2 - 8 + eye_offset
+        eye_pulse = int(abs(math.sin(t * 0.008)) * 40)
+
+        # Eye glow aura
+        glow_surf = pygame.Surface((28, 16), pygame.SRCALPHA)
+        glow_color = (*self.secondary_color[:3], 60 + eye_pulse)
+        pygame.draw.ellipse(glow_surf, glow_color, (0, 0, 28, 16))
+        screen.blit(glow_surf, (eye_x - 4, y + 8))
+
+        # Eyes with inner glow
+        eye_color = self.secondary_color
+        eye_bright = tuple(min(255, c + 80) for c in eye_color)
+        pygame.draw.circle(screen, eye_color, (eye_x + 4, y + 14), 5)
+        pygame.draw.circle(screen, eye_color, (eye_x + 18, y + 14), 5)
+        pygame.draw.circle(screen, eye_bright, (eye_x + 4, y + 14), 3)
+        pygame.draw.circle(screen, eye_bright, (eye_x + 18, y + 14), 3)
+        pygame.draw.circle(screen, (255, 255, 220), (eye_x + 4, y + 14), 1)
+        pygame.draw.circle(screen, (255, 255, 220), (eye_x + 18, y + 14), 1)
 
     def _draw_flying(self, screen, screen_x, y):
-        """Draw a flying creature (pixie/fairy-like) with cartoon style."""
-        import math
-        # Animated wings
-        wing_flap = math.sin(pygame.time.get_ticks() * 0.02) * 5
-        
-        # Wing glow
-        wing_glow = pygame.Surface((60, 40), pygame.SRCALPHA)
-        pygame.draw.ellipse(wing_glow, (*self.secondary_color, 40), (0, 5, 25, 30))
-        pygame.draw.ellipse(wing_glow, (*self.secondary_color, 40), (35, 5, 25, 30))
-        screen.blit(wing_glow, (screen_x - 12, y + 8 + wing_flap))
-        
-        # Wings with outline
-        left_wing = (screen_x - 8, y + 12 + wing_flap, 18, 26)
-        right_wing = (screen_x + ENEMY_WIDTH - 10, y + 12 - wing_flap, 18, 26)
-        pygame.draw.ellipse(screen, self.secondary_color, left_wing)
-        pygame.draw.ellipse(screen, self.secondary_color, right_wing)
-        wing_dark = tuple(max(0, c - 50) for c in self.secondary_color)
-        pygame.draw.ellipse(screen, wing_dark, left_wing, 2)
-        pygame.draw.ellipse(screen, wing_dark, right_wing, 2)
-        
-        # Body with outline
-        body_rect = (screen_x + 5, y + 15, ENEMY_WIDTH - 10, ENEMY_HEIGHT - 20)
-        pygame.draw.ellipse(screen, self.color, body_rect)
-        body_dark = tuple(max(0, c - 40) for c in self.color)
-        pygame.draw.ellipse(screen, body_dark, body_rect, 2)
-        
-        # Cute face
-        # Eyes with shine
-        pygame.draw.circle(screen, WHITE, (screen_x + 12, y + 25), 6)
-        pygame.draw.circle(screen, WHITE, (screen_x + 23, y + 25), 6)
-        pygame.draw.circle(screen, BLACK, (screen_x + 12, y + 25), 6, 1)
-        pygame.draw.circle(screen, BLACK, (screen_x + 23, y + 25), 6, 1)
-        pygame.draw.circle(screen, BLACK, (screen_x + 13, y + 26), 3)
-        pygame.draw.circle(screen, BLACK, (screen_x + 24, y + 26), 3)
-        pygame.draw.circle(screen, WHITE, (screen_x + 11, y + 23), 2)
-        pygame.draw.circle(screen, WHITE, (screen_x + 22, y + 23), 2)
-        # Smile
-        pygame.draw.arc(screen, BLACK, (screen_x + 12, y + 30, 12, 8), 3.14, 0, 1)
+        """Draw a Cornish Pixie - mischievous blue creature with cel-shaded style."""
+        t = pygame.time.get_ticks()
+        w, h = ENEMY_WIDTH, ENEMY_HEIGHT
+
+        # Animated wing flap
+        wing_flap = math.sin(t * 0.025) * 8
+        wing_angle = math.cos(t * 0.025) * 0.3
+
+        # Pixie dust trail
+        for i in range(4):
+            dust_x = screen_x + w//2 + int(math.sin(t * 0.01 + i) * 15)
+            dust_y = y + h//2 + int(math.cos(t * 0.008 + i * 1.5) * 10)
+            dust_alpha = int(100 - i * 20)
+            dust_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(dust_surf, (200, 220, 255, dust_alpha), (3, 3), 3 - i//2)
+            screen.blit(dust_surf, (dust_x, dust_y))
+
+        # Wing glow aura
+        wing_glow = pygame.Surface((w + 40, h + 20), pygame.SRCALPHA)
+        glow_pulse = int(abs(math.sin(t * 0.006)) * 30)
+        pygame.draw.ellipse(wing_glow, (*self.secondary_color[:3], 30 + glow_pulse), (0, 10, 25, 35))
+        pygame.draw.ellipse(wing_glow, (*self.secondary_color[:3], 30 + glow_pulse), (w + 15, 10, 25, 35))
+        screen.blit(wing_glow, (screen_x - 12, y - 5))
+
+        # Delicate fairy wings - left
+        wing_color = self.secondary_color
+        wing_light = tuple(min(255, c + 60) for c in wing_color)
+        wing_dark = tuple(max(0, c - 40) for c in wing_color)
+
+        left_wing_pts = [
+            (screen_x + 8, y + 20),
+            (screen_x - 10 + int(wing_flap * 0.5), y + 8 - int(abs(wing_flap))),
+            (screen_x - 15, y + 25),
+            (screen_x - 5, y + 35),
+            (screen_x + 5, y + 30)
+        ]
+        pygame.draw.polygon(screen, wing_color, left_wing_pts)
+        pygame.draw.polygon(screen, wing_light, [(p[0] + 2, p[1] + 2) for p in left_wing_pts[:3]], 0)
+        pygame.draw.polygon(screen, wing_dark, left_wing_pts, 2)
+        # Wing veins
+        pygame.draw.line(screen, wing_dark, left_wing_pts[0], left_wing_pts[1], 1)
+        pygame.draw.line(screen, wing_dark, left_wing_pts[0], left_wing_pts[3], 1)
+
+        # Right wing
+        right_wing_pts = [
+            (screen_x + w - 8, y + 20),
+            (screen_x + w + 10 - int(wing_flap * 0.5), y + 8 - int(abs(wing_flap))),
+            (screen_x + w + 15, y + 25),
+            (screen_x + w + 5, y + 35),
+            (screen_x + w - 5, y + 30)
+        ]
+        pygame.draw.polygon(screen, wing_color, right_wing_pts)
+        pygame.draw.polygon(screen, wing_dark, right_wing_pts, 2)
+        pygame.draw.line(screen, wing_dark, right_wing_pts[0], right_wing_pts[1], 1)
+        pygame.draw.line(screen, wing_dark, right_wing_pts[0], right_wing_pts[3], 1)
+
+        # Body - electric blue with cel-shading
+        body_color = self.color
+        body_dark = tuple(max(0, c - 50) for c in body_color)
+        body_light = tuple(min(255, c + 40) for c in body_color)
+
+        pygame.draw.ellipse(screen, body_color, (screen_x + 6, y + 16, w - 12, h - 22))
+        pygame.draw.ellipse(screen, body_dark, (screen_x + 6, y + 18, 10, h - 28))
+        pygame.draw.arc(screen, body_light, (screen_x + w - 20, y + 20, 12, h - 32), -1.5, 1.5, 3)
+        pygame.draw.ellipse(screen, tuple(max(0, c - 60) for c in body_color),
+                          (screen_x + 6, y + 16, w - 12, h - 22), 2)
+
+        # Tiny arms
+        pygame.draw.ellipse(screen, body_color, (screen_x + 2, y + 22, 8, 14))
+        pygame.draw.ellipse(screen, body_color, (screen_x + w - 10, y + 22, 8, 14))
+        # Tiny hands
+        pygame.draw.circle(screen, body_light, (screen_x + 4, y + 35), 4)
+        pygame.draw.circle(screen, body_light, (screen_x + w - 6, y + 35), 4)
+
+        # Head - slightly larger with pointy ears
+        head_color = body_color
+        pygame.draw.ellipse(screen, head_color, (screen_x + 4, y + 4, w - 8, 20))
+        pygame.draw.ellipse(screen, body_dark, (screen_x + 4, y + 6, 8, 14))
+        pygame.draw.ellipse(screen, body_light, (screen_x + w - 16, y + 6, 8, 10))
+        pygame.draw.ellipse(screen, tuple(max(0, c - 60) for c in head_color),
+                          (screen_x + 4, y + 4, w - 8, 20), 2)
+
+        # Pointy ears
+        pygame.draw.polygon(screen, head_color, [
+            (screen_x + 4, y + 10), (screen_x - 4, y + 4), (screen_x + 8, y + 8)
+        ])
+        pygame.draw.polygon(screen, head_color, [
+            (screen_x + w - 4, y + 10), (screen_x + w + 4, y + 4), (screen_x + w - 8, y + 8)
+        ])
+
+        # Mischievous eyes - big and expressive
+        eye_offset = 2 * self.direction
+        # Eye whites
+        pygame.draw.ellipse(screen, WHITE, (screen_x + 8 + eye_offset, y + 8, 10, 10))
+        pygame.draw.ellipse(screen, WHITE, (screen_x + w - 18 + eye_offset, y + 8, 10, 10))
+        # Irises - dark blue
+        pygame.draw.circle(screen, (30, 50, 120), (screen_x + 13 + eye_offset, y + 13), 4)
+        pygame.draw.circle(screen, (30, 50, 120), (screen_x + w - 13 + eye_offset, y + 13), 4)
+        # Pupils
+        pygame.draw.circle(screen, BLACK, (screen_x + 14 + eye_offset, y + 13), 2)
+        pygame.draw.circle(screen, BLACK, (screen_x + w - 12 + eye_offset, y + 13), 2)
+        # Eye shine
+        pygame.draw.circle(screen, WHITE, (screen_x + 11 + eye_offset, y + 11), 2)
+        pygame.draw.circle(screen, WHITE, (screen_x + w - 15 + eye_offset, y + 11), 2)
+        # Mischievous eyebrows
+        pygame.draw.arc(screen, body_dark, (screen_x + 7 + eye_offset, y + 4, 12, 8), 0.5, 2.5, 2)
+        pygame.draw.arc(screen, body_dark, (screen_x + w - 19 + eye_offset, y + 4, 12, 8), 0.5, 2.5, 2)
+
+        # Impish grin
+        pygame.draw.arc(screen, (150, 100, 120), (screen_x + 10, y + 18, 14, 8), 3.14, 0, 2)
+        # Tiny sharp teeth
+        for i in range(3):
+            tooth_x = screen_x + 12 + i * 4
+            pygame.draw.polygon(screen, WHITE, [
+                (tooth_x, y + 19), (tooth_x + 2, y + 22), (tooth_x + 4, y + 19)
+            ])
 
     def _draw_tank(self, screen, screen_x, y):
-        """Draw a troll-like creature with cartoon style."""
+        """Draw a Giant Rat - scruffy, menacing with cel-shaded fur texture."""
+        t = pygame.time.get_ticks()
+        w, h = ENEMY_WIDTH, ENEMY_HEIGHT
+
+        # Scurrying animation
+        scurry = int(math.sin(t * 0.015) * 2)
+
         # Shadow
-        shadow_surf = pygame.Surface((ENEMY_WIDTH + 20, 12), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 50), (0, 0, ENEMY_WIDTH + 20, 12))
-        screen.blit(shadow_surf, (screen_x - 10, y + ENEMY_HEIGHT - 5))
-        
-        # Large body with outline
-        body_rect = pygame.Rect(screen_x - 5, y + 15, ENEMY_WIDTH + 10, ENEMY_HEIGHT - 15)
-        pygame.draw.rect(screen, self.color, body_rect, border_radius=8)
-        body_dark = tuple(max(0, c - 40) for c in self.color)
-        pygame.draw.rect(screen, body_dark, body_rect, 2, border_radius=8)
-        
-        # Belly highlight
-        belly = pygame.Rect(screen_x, y + 25, ENEMY_WIDTH, 20)
-        belly_light = tuple(min(255, c + 30) for c in self.color)
-        pygame.draw.ellipse(screen, belly_light, belly)
-        
-        # Head with outline
-        head_rect = (screen_x + 2, y - 2, ENEMY_WIDTH - 4, 28)
-        pygame.draw.ellipse(screen, (90, 90, 100), head_rect)
-        pygame.draw.ellipse(screen, (60, 60, 70), head_rect, 2)
-        
-        # Angry eyes
-        eye_x = screen_x + (18 if self.direction > 0 else 6)
-        # Brow
-        pygame.draw.line(screen, (40, 40, 50), (eye_x - 2, y + 4), (eye_x + 10, y + 8), 3)
-        pygame.draw.line(screen, (40, 40, 50), (eye_x + 14, y + 8), (eye_x + 26, y + 4), 3)
-        # Eyes
-        pygame.draw.ellipse(screen, self.secondary_color, (eye_x, y + 10, 10, 6))
-        pygame.draw.ellipse(screen, self.secondary_color, (eye_x + 14, y + 10, 10, 6))
-        
-        # Tusks
-        pygame.draw.polygon(screen, (240, 240, 230), [(screen_x + 8, y + 20), (screen_x + 5, y + 28), (screen_x + 12, y + 22)])
-        pygame.draw.polygon(screen, (240, 240, 230), [(screen_x + ENEMY_WIDTH - 8, y + 20), (screen_x + ENEMY_WIDTH - 5, y + 28), (screen_x + ENEMY_WIDTH - 12, y + 22)])
-        
-        # Club/weapon with detail
-        club_x = screen_x + (ENEMY_WIDTH + 8 if self.direction > 0 else -18)
-        # Handle
-        pygame.draw.rect(screen, (100, 70, 50), (club_x + 2, y + 22, 8, 32), border_radius=2)
-        pygame.draw.rect(screen, (70, 50, 35), (club_x + 2, y + 22, 8, 32), 1, border_radius=2)
-        # Club head
-        pygame.draw.ellipse(screen, (90, 65, 45), (club_x - 4, y + 12, 20, 18))
-        pygame.draw.ellipse(screen, (60, 45, 30), (club_x - 4, y + 12, 20, 18), 2)
-        # Spikes
+        shadow_surf = pygame.Surface((w + 16, 12), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 70), (0, 0, w + 16, 12))
+        screen.blit(shadow_surf, (screen_x - 8, y + h - 6))
+
+        # Long scaly tail
+        tail_wave = math.sin(t * 0.008) * 8
+        tail_start_x = screen_x + (0 if self.direction > 0 else w)
+        tail_end_x = tail_start_x - 35 * self.direction
+        tail_mid_x = (tail_start_x + tail_end_x) // 2
+        tail_color = (180, 160, 150)
+        tail_dark = (140, 120, 110)
+        # Draw curved tail
+        pygame.draw.line(screen, tail_color, (tail_start_x, y + h - 15),
+                        (tail_mid_x, y + h - 8 + int(tail_wave)), 6)
+        pygame.draw.line(screen, tail_color, (tail_mid_x, y + h - 8 + int(tail_wave)),
+                        (tail_end_x, y + h - 20 + int(tail_wave * 1.5)), 4)
+        pygame.draw.line(screen, tail_dark, (tail_start_x, y + h - 15),
+                        (tail_mid_x, y + h - 8 + int(tail_wave)), 2)
+        # Tail segments
+        for i in range(5):
+            seg_x = tail_start_x + (tail_mid_x - tail_start_x) * i // 5
+            seg_y = y + h - 15 + (7 + int(tail_wave)) * i // 5
+            pygame.draw.line(screen, tail_dark, (seg_x - 2, seg_y - 2), (seg_x + 2, seg_y + 2), 1)
+
+        # Back legs
+        leg_offset = scurry
+        pygame.draw.ellipse(screen, self.color, (screen_x + 2, y + h - 20 - leg_offset, 14, 22))
+        pygame.draw.ellipse(screen, self.color, (screen_x + w - 16, y + h - 20 + leg_offset, 14, 22))
+        # Paws with claws
+        paw_color = (180, 160, 150)
+        pygame.draw.ellipse(screen, paw_color, (screen_x, y + h - 8 - leg_offset, 16, 10))
+        pygame.draw.ellipse(screen, paw_color, (screen_x + w - 18, y + h - 8 + leg_offset, 16, 10))
+        # Claws
         for i in range(3):
-            sx = club_x + 2 + i * 6
-            pygame.draw.polygon(screen, (70, 70, 75), [(sx, y + 14), (sx + 3, y + 6), (sx + 6, y + 14)])
+            pygame.draw.ellipse(screen, (60, 50, 45), (screen_x + 2 + i * 5, y + h - 4 - leg_offset, 3, 5))
+            pygame.draw.ellipse(screen, (60, 50, 45), (screen_x + w - 16 + i * 5, y + h - 4 + leg_offset, 3, 5))
+
+        # Body - hunched with fur texture
+        body_color = self.color
+        body_dark = tuple(max(0, c - 45) for c in body_color)
+        body_light = tuple(min(255, c + 25) for c in body_color)
+
+        pygame.draw.ellipse(screen, body_color, (screen_x - 2, y + 12, w + 4, h - 18))
+        # Fur shading layers
+        pygame.draw.ellipse(screen, body_dark, (screen_x - 2, y + 16, 14, h - 26))
+        pygame.draw.arc(screen, body_light, (screen_x + w - 18, y + 18, 16, h - 30), -1.5, 1.5, 4)
+
+        # Fur texture - multiple small strokes
+        for i in range(8):
+            fur_x = screen_x + 6 + i * 5
+            fur_y = y + 18 + (i % 3) * 8
+            fur_len = 6 + (i % 2) * 3
+            pygame.draw.line(screen, body_dark, (fur_x, fur_y), (fur_x - 2, fur_y + fur_len), 2)
+        # Belly fur (lighter)
+        pygame.draw.ellipse(screen, body_light, (screen_x + 8, y + 28, w - 16, 18))
+        for i in range(4):
+            pygame.draw.line(screen, body_color, (screen_x + 12 + i * 6, y + 30),
+                           (screen_x + 12 + i * 6, y + 42), 1)
+
+        pygame.draw.ellipse(screen, tuple(max(0, c - 55) for c in body_color),
+                          (screen_x - 2, y + 12, w + 4, h - 18), 2)
+
+        # Front legs/arms
+        pygame.draw.ellipse(screen, body_color, (screen_x - 6, y + 25 + scurry, 12, 20))
+        pygame.draw.ellipse(screen, body_color, (screen_x + w - 6, y + 25 - scurry, 12, 20))
+        pygame.draw.ellipse(screen, paw_color, (screen_x - 8, y + 42 + scurry, 12, 8))
+        pygame.draw.ellipse(screen, paw_color, (screen_x + w - 4, y + 42 - scurry, 12, 8))
+
+        # Head - pointed snout, beady eyes
+        head_color = body_color
+        head_y = y - 2
+
+        # Main head shape
+        pygame.draw.ellipse(screen, head_color, (screen_x + 4, head_y, w - 8, 24))
+        pygame.draw.ellipse(screen, body_dark, (screen_x + 4, head_y + 4, 10, 16))
+
+        # Pointed snout
+        snout_x = screen_x + (w - 4 if self.direction > 0 else 4)
+        snout_pts = [
+            (screen_x + w//2 - 4, head_y + 12),
+            (snout_x, head_y + 8),
+            (snout_x + 4 * self.direction, head_y + 14),
+            (screen_x + w//2 + 4, head_y + 16)
+        ]
+        pygame.draw.polygon(screen, (160, 140, 130), snout_pts)
+        pygame.draw.polygon(screen, (120, 100, 90), snout_pts, 2)
+        # Nose
+        nose_x = snout_x + 2 * self.direction
+        pygame.draw.ellipse(screen, (50, 40, 40), (nose_x - 4, head_y + 8, 8, 6))
+        pygame.draw.ellipse(screen, (80, 60, 60), (nose_x - 2, head_y + 9, 3, 3))
+
+        # Round ears
+        pygame.draw.ellipse(screen, head_color, (screen_x + 2, head_y - 6, 12, 14))
+        pygame.draw.ellipse(screen, (200, 160, 160), (screen_x + 4, head_y - 4, 8, 10))
+        pygame.draw.ellipse(screen, head_color, (screen_x + w - 14, head_y - 6, 12, 14))
+        pygame.draw.ellipse(screen, (200, 160, 160), (screen_x + w - 12, head_y - 4, 8, 10))
+
+        # Beady red eyes - menacing
+        eye_offset = 4 * self.direction
+        eye_y = head_y + 8
+        # Eye glow
+        glow_surf = pygame.Surface((20, 12), pygame.SRCALPHA)
+        glow_pulse = int(abs(math.sin(t * 0.008)) * 40)
+        pygame.draw.ellipse(glow_surf, (255, 50, 50, 40 + glow_pulse), (0, 0, 20, 12))
+        screen.blit(glow_surf, (screen_x + 10 + eye_offset, eye_y - 2))
+
+        pygame.draw.ellipse(screen, self.secondary_color, (screen_x + 12 + eye_offset, eye_y, 8, 6))
+        pygame.draw.ellipse(screen, self.secondary_color, (screen_x + w - 20 + eye_offset, eye_y, 8, 6))
+        pygame.draw.ellipse(screen, (255, 200, 200), (screen_x + 14 + eye_offset, eye_y + 1, 3, 3))
+        pygame.draw.ellipse(screen, (255, 200, 200), (screen_x + w - 18 + eye_offset, eye_y + 1, 3, 3))
+
+        # Whiskers
+        whisker_x = snout_x - 4 * self.direction
+        for i in range(3):
+            wy = head_y + 12 + i * 3
+            pygame.draw.line(screen, (80, 70, 65), (whisker_x, wy),
+                           (whisker_x - 12 * self.direction, wy - 4 + i * 3), 1)
+            pygame.draw.line(screen, (80, 70, 65), (whisker_x, wy),
+                           (whisker_x + 12 * self.direction, wy - 2 + i * 2), 1)
+
+        # Teeth (when facing player)
+        pygame.draw.polygon(screen, (250, 245, 235), [
+            (screen_x + w//2 - 3, head_y + 16), (screen_x + w//2 - 1, head_y + 22), (screen_x + w//2 + 1, head_y + 16)
+        ])
+        pygame.draw.polygon(screen, (250, 245, 235), [
+            (screen_x + w//2 + 1, head_y + 16), (screen_x + w//2 + 3, head_y + 21), (screen_x + w//2 + 5, head_y + 16)
+        ])
 
     def _draw_malfoy(self, screen, screen_x, y):
-        """Draw Draco Malfoy - sneering Slytherin student."""
+        """Draw Draco Malfoy - sneering Slytherin student with cel-shaded style."""
         w, h = self.rect.width, self.rect.height
+        t = pygame.time.get_ticks()
 
         # Shadow
-        shadow_surf = pygame.Surface((w + 6, 8), pygame.SRCALPHA)
-        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 50), (0, 0, w + 6, 8))
-        screen.blit(shadow_surf, (screen_x - 3, y + h - 4))
+        shadow_surf = pygame.Surface((w + 10, 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow_surf, (0, 0, 0, 60), (0, 0, w + 10, 10))
+        screen.blit(shadow_surf, (screen_x - 5, y + h - 5))
 
-        # Slytherin robes (body)
-        robe_color = (20, 60, 20)  # Dark green
-        pygame.draw.ellipse(screen, robe_color, (screen_x + 2, y + 18, w - 4, h - 18))
-        pygame.draw.ellipse(screen, (10, 40, 10), (screen_x + 2, y + 18, w - 4, h - 18), 2)
+        # Slytherin robes - layered for depth
+        robe_base = (25, 70, 30)
+        robe_dark = (15, 45, 18)
+        robe_light = (40, 95, 45)
 
-        # Silver/green tie
-        pygame.draw.polygon(screen, SILVER, [
-            (screen_x + w//2 - 3, y + 20), (screen_x + w//2 + 3, y + 20),
-            (screen_x + w//2 + 2, y + 35), (screen_x + w//2 - 2, y + 35)
+        # Legs visible under robes
+        pygame.draw.rect(screen, (50, 50, 55), (screen_x + 10, y + h - 18, 8, 18))
+        pygame.draw.rect(screen, (50, 50, 55), (screen_x + w - 18, y + h - 18, 8, 18))
+        pygame.draw.rect(screen, (30, 30, 35), (screen_x + 10, y + h - 6, 8, 6))  # Shoes
+        pygame.draw.rect(screen, (30, 30, 35), (screen_x + w - 18, y + h - 6, 8, 6))
+
+        # Main robe body
+        pygame.draw.ellipse(screen, robe_base, (screen_x + 2, y + 18, w - 4, h - 22))
+        # Shading
+        pygame.draw.ellipse(screen, robe_dark, (screen_x + 2, y + 20, 12, h - 28))
+        pygame.draw.arc(screen, robe_light, (screen_x + w - 16, y + 24, 12, h - 34), -1.5, 1.5, 3)
+        pygame.draw.ellipse(screen, (10, 35, 12), (screen_x + 2, y + 18, w - 4, h - 22), 2)
+
+        # Robe collar and details
+        pygame.draw.rect(screen, robe_dark, (screen_x + 8, y + 18, w - 16, 8))
+        # Silver Slytherin trim
+        pygame.draw.line(screen, SILVER, (screen_x + 6, y + 18), (screen_x + 6, y + h - 10), 2)
+        pygame.draw.line(screen, SILVER, (screen_x + w - 6, y + 18), (screen_x + w - 6, y + h - 10), 2)
+
+        # Slytherin tie - silver and green stripes
+        tie_points = [
+            (screen_x + w//2 - 4, y + 18), (screen_x + w//2 + 4, y + 18),
+            (screen_x + w//2 + 3, y + 38), (screen_x + w//2 - 3, y + 38)
+        ]
+        pygame.draw.polygon(screen, SILVER, tie_points)
+        pygame.draw.line(screen, (0, 100, 0), (screen_x + w//2, y + 20), (screen_x + w//2, y + 24), 3)
+        pygame.draw.line(screen, (0, 100, 0), (screen_x + w//2, y + 28), (screen_x + w//2, y + 32), 3)
+        pygame.draw.polygon(screen, (140, 140, 150), tie_points, 1)
+
+        # Arms
+        arm_y = y + 22
+        pygame.draw.ellipse(screen, robe_base, (screen_x - 2, arm_y, 12, 24))
+        pygame.draw.ellipse(screen, robe_base, (screen_x + w - 10, arm_y, 12, 24))
+        # Hands
+        pygame.draw.circle(screen, (250, 230, 210), (screen_x + 2, arm_y + 24), 6)
+        pygame.draw.circle(screen, (250, 230, 210), (screen_x + w - 2, arm_y + 24), 6)
+
+        # Head - pale aristocratic features
+        head_y = y
+        face_color = (255, 235, 220)
+        face_shadow = (235, 210, 195)
+
+        pygame.draw.ellipse(screen, face_color, (screen_x + 6, head_y, w - 12, 24))
+        pygame.draw.ellipse(screen, face_shadow, (screen_x + 6, head_y + 4, 8, 16))
+        pygame.draw.ellipse(screen, (220, 195, 180), (screen_x + 6, head_y, w - 12, 24), 2)
+
+        # Slicked back platinum blonde hair
+        hair_color = (240, 235, 200)
+        hair_dark = (210, 200, 160)
+        hair_highlight = (255, 250, 230)
+
+        pygame.draw.ellipse(screen, hair_color, (screen_x + 4, head_y - 4, w - 8, 16))
+        pygame.draw.arc(screen, hair_highlight, (screen_x + 8, head_y - 2, w - 16, 10), 0.5, 2.5, 2)
+        pygame.draw.arc(screen, hair_dark, (screen_x + 4, head_y - 4, w - 8, 16), 3.5, 6.0, 2)
+        # Side part
+        pygame.draw.line(screen, hair_dark, (screen_x + 12, head_y), (screen_x + 8, head_y + 8), 2)
+
+        # Sneering face - arrogant expression
+        eye_offset = 3 if self.direction > 0 else -3
+        eye_y = head_y + 8
+
+        # Angry/arrogant eyebrows
+        pygame.draw.line(screen, hair_dark, (screen_x + 10 + eye_offset, eye_y - 2),
+                        (screen_x + 16 + eye_offset, eye_y), 2)
+        pygame.draw.line(screen, hair_dark, (screen_x + w - 10 + eye_offset, eye_y - 2),
+                        (screen_x + w - 16 + eye_offset, eye_y), 2)
+
+        # Narrowed contemptuous eyes
+        pygame.draw.ellipse(screen, (240, 240, 245), (screen_x + 10 + eye_offset, eye_y, 8, 5))
+        pygame.draw.ellipse(screen, (240, 240, 245), (screen_x + w - 18 + eye_offset, eye_y, 8, 5))
+        # Grey-blue irises
+        pygame.draw.ellipse(screen, (120, 130, 145), (screen_x + 12 + eye_offset, eye_y + 1, 4, 3))
+        pygame.draw.ellipse(screen, (120, 130, 145), (screen_x + w - 16 + eye_offset, eye_y + 1, 4, 3))
+        pygame.draw.ellipse(screen, (60, 70, 80), (screen_x + 10 + eye_offset, eye_y, 8, 5), 1)
+        pygame.draw.ellipse(screen, (60, 70, 80), (screen_x + w - 18 + eye_offset, eye_y, 8, 5), 1)
+
+        # Pointed nose
+        pygame.draw.polygon(screen, face_shadow, [
+            (screen_x + w//2, eye_y + 4),
+            (screen_x + w//2 - 2, eye_y + 10),
+            (screen_x + w//2 + 2, eye_y + 10)
         ])
-        pygame.draw.line(screen, (0, 80, 0), (screen_x + w//2, y + 22), (screen_x + w//2, y + 34), 2)
 
-        # Head - pale with slicked back blonde hair
-        head_y = y + 2
-        pygame.draw.ellipse(screen, (255, 230, 210), (screen_x + 5, head_y, w - 10, 22))
-        pygame.draw.ellipse(screen, (200, 180, 160), (screen_x + 5, head_y, w - 10, 22), 1)
+        # Sneering smirk
+        pygame.draw.arc(screen, (180, 120, 120), (screen_x + w//2 - 6, head_y + 14, 12, 6), 0.3, 2.8, 2)
+        pygame.draw.arc(screen, (200, 140, 140), (screen_x + w//2 + 2, head_y + 15, 6, 4), 3.5, 6.0, 2)
 
-        # Slicked blonde hair
-        hair_color = (230, 220, 180)
-        pygame.draw.ellipse(screen, hair_color, (screen_x + 4, head_y - 2, w - 8, 12))
-        pygame.draw.arc(screen, hair_color, (screen_x + 2, head_y, 10, 15), 1.5, 3.5, 3)
+        # Wand - hawthorn with unicorn hair
+        wand_x = screen_x + (w + 4 if self.direction > 0 else -14)
+        wand_end_x = wand_x + 16 * self.direction
+        # Wand body
+        pygame.draw.line(screen, (90, 60, 40), (wand_x, y + 28), (wand_end_x, y + 22), 4)
+        pygame.draw.line(screen, (120, 85, 55), (wand_x + 2, y + 27), (wand_end_x, y + 21), 2)
+        # Wand handle detail
+        pygame.draw.circle(screen, (70, 45, 30), (wand_x, y + 28), 4)
 
-        # Sneering face
-        eye_x = screen_x + (12 if self.direction > 0 else 8)
-        # Narrowed eyes
-        pygame.draw.ellipse(screen, (100, 100, 100), (eye_x, head_y + 8, 6, 4))
-        pygame.draw.ellipse(screen, (100, 100, 100), (eye_x + 10, head_y + 8, 6, 4))
-        # Sneer
-        pygame.draw.arc(screen, (150, 100, 100), (screen_x + 10, head_y + 14, 14, 6), 0, 3.14, 2)
-
-        # Wand (if shooting)
-        wand_x = screen_x + (w + 2 if self.direction > 0 else -12)
-        pygame.draw.line(screen, (80, 50, 30), (wand_x, y + 25), (wand_x + 10 * self.direction, y + 20), 3)
-
-        # Spell glow when attacking
+        # Spell effect when attacking
         if hasattr(self, 'shoot_cooldown') and self.shoot_cooldown > self.shoot_interval * 0.8:
-            glow_x = wand_x + 12 * self.direction
-            pygame.draw.circle(screen, (0, 255, 0), (glow_x, y + 18), 8)
-            pygame.draw.circle(screen, (150, 255, 150), (glow_x, y + 18), 4)
+            glow_x = wand_end_x + 4 * self.direction
+            # Slytherin green spell
+            glow_surf = pygame.Surface((24, 24), pygame.SRCALPHA)
+            glow_intensity = int(150 + math.sin(t * 0.02) * 50)
+            pygame.draw.circle(glow_surf, (0, 200, 50, glow_intensity), (12, 12), 10)
+            pygame.draw.circle(glow_surf, (100, 255, 150, glow_intensity), (12, 12), 5)
+            screen.blit(glow_surf, (glow_x - 12, y + 10))
 
     def _draw_troll(self, screen, screen_x, y):
         """Draw Mountain Troll - huge, dumb, and dangerous."""
@@ -1008,62 +1296,142 @@ class Enemy:
             pygame.draw.circle(screen, (glow, 150 + glow//2, glow), (spot_x, spot_y), 4)
 
     def _draw_flying_key(self, screen, screen_x, y):
-        """Draw Flying Key - fast and annoying."""
+        """Draw Flying Key - ornate antique brass key with feathered wings."""
         w, h = self.rect.width, self.rect.height
         t = pygame.time.get_ticks()
 
-        # Wing flap animation
-        wing_angle = math.sin(t * 0.03) * 20
+        # Wing flap animation - smooth and bird-like
+        wing_flap = math.sin(t * 0.025) * 15
+        wing_tilt = math.cos(t * 0.025) * 0.2
 
-        # Glow effect
-        glow_surf = pygame.Surface((w + 20, h + 20), pygame.SRCALPHA)
-        pygame.draw.ellipse(glow_surf, (*GOLD[:3], 50), (0, 0, w + 20, h + 20))
-        screen.blit(glow_surf, (screen_x - 10, y - 10))
+        # Magical golden glow aura
+        glow_surf = pygame.Surface((w + 30, h + 30), pygame.SRCALPHA)
+        glow_pulse = int(abs(math.sin(t * 0.004)) * 40)
+        pygame.draw.ellipse(glow_surf, (255, 215, 100, 40 + glow_pulse), (0, 0, w + 30, h + 30))
+        pygame.draw.ellipse(glow_surf, (255, 230, 150, 25 + glow_pulse//2), (5, 5, w + 20, h + 20))
+        screen.blit(glow_surf, (screen_x - 15, y - 15))
 
-        # Key body (golden)
-        key_color = GOLD
-        # Handle (oval at top)
-        pygame.draw.ellipse(screen, key_color, (screen_x + w//2 - 8, y + 5, 16, 20))
-        pygame.draw.ellipse(screen, (200, 170, 0), (screen_x + w//2 - 8, y + 5, 16, 20), 2)
-        # Handle hole
-        pygame.draw.ellipse(screen, (100, 80, 0), (screen_x + w//2 - 4, y + 10, 8, 10))
+        # Sparkle trail
+        for i in range(5):
+            spark_angle = t * 0.01 + i * 1.2
+            spark_dist = 18 + i * 4
+            spark_x = screen_x + w//2 + int(math.cos(spark_angle) * spark_dist)
+            spark_y = y + h//2 + int(math.sin(spark_angle) * spark_dist * 0.6)
+            spark_alpha = 150 - i * 25
+            spark_surf = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(spark_surf, (255, 255, 200, spark_alpha), (3, 3), 3 - i//2)
+            screen.blit(spark_surf, (spark_x - 3, spark_y - 3))
 
-        # Key shaft
-        pygame.draw.rect(screen, key_color, (screen_x + w//2 - 3, y + 20, 6, 25))
-        pygame.draw.rect(screen, (200, 170, 0), (screen_x + w//2 - 3, y + 20, 6, 25), 1)
+        # Detailed feathered wings - Left wing
+        wing_base_color = (220, 200, 160)
+        wing_gold = (240, 215, 140)
+        wing_dark = (180, 155, 100)
+        wing_highlight = (255, 245, 210)
 
-        # Key teeth
-        pygame.draw.rect(screen, key_color, (screen_x + w//2 - 8, y + 38, 8, 6))
-        pygame.draw.rect(screen, key_color, (screen_x + w//2, y + 42, 6, 5))
+        # Left wing - layered feathers
+        left_wing_x = screen_x + w//2 - 6
+        left_wing_offset = int(wing_flap)
 
-        # Delicate butterfly wings
-        wing_color = (220, 200, 150)
+        # Primary feathers (outer)
+        for i in range(4):
+            feather_x = left_wing_x - 8 - i * 6 + left_wing_offset // 3
+            feather_y = y + 8 + i * 4 - abs(left_wing_offset) // 2
+            feather_pts = [
+                (left_wing_x, y + 18),
+                (feather_x - 4, feather_y),
+                (feather_x - 8, feather_y + 8),
+                (left_wing_x - 5, y + 25)
+            ]
+            color = wing_gold if i % 2 == 0 else wing_base_color
+            pygame.draw.polygon(screen, color, feather_pts)
+            pygame.draw.polygon(screen, wing_dark, feather_pts, 1)
 
-        # Left wing
-        wing_pts_l = [
-            (screen_x + w//2 - 5, y + 15),
-            (screen_x - 5 + wing_angle//3, y + 5),
-            (screen_x - 8 + wing_angle//2, y + 20),
-            (screen_x + w//2 - 5, y + 25)
-        ]
-        pygame.draw.polygon(screen, wing_color, wing_pts_l)
-        pygame.draw.polygon(screen, (180, 160, 100), wing_pts_l, 1)
+        # Secondary feathers (inner)
+        for i in range(3):
+            feather_x = left_wing_x - 4 - i * 5 + left_wing_offset // 4
+            feather_y = y + 12 + i * 5 - abs(left_wing_offset) // 3
+            pygame.draw.ellipse(screen, wing_highlight, (feather_x, feather_y, 10, 16))
+            pygame.draw.ellipse(screen, wing_dark, (feather_x, feather_y, 10, 16), 1)
 
-        # Right wing
-        wing_pts_r = [
-            (screen_x + w//2 + 5, y + 15),
-            (screen_x + w + 5 - wing_angle//3, y + 5),
-            (screen_x + w + 8 - wing_angle//2, y + 20),
-            (screen_x + w//2 + 5, y + 25)
-        ]
-        pygame.draw.polygon(screen, wing_color, wing_pts_r)
-        pygame.draw.polygon(screen, (180, 160, 100), wing_pts_r, 1)
+        # Right wing - mirror
+        right_wing_x = screen_x + w//2 + 6
+        right_wing_offset = -int(wing_flap)
 
-        # Sparkle effect
-        sparkle_x = screen_x + w//2 + int(math.cos(t * 0.01) * 15)
-        sparkle_y = y + 15 + int(math.sin(t * 0.01) * 10)
-        if int(t / 100) % 3 == 0:
-            pygame.draw.circle(screen, WHITE, (sparkle_x, sparkle_y), 2)
+        for i in range(4):
+            feather_x = right_wing_x + 8 + i * 6 - right_wing_offset // 3
+            feather_y = y + 8 + i * 4 - abs(right_wing_offset) // 2
+            feather_pts = [
+                (right_wing_x, y + 18),
+                (feather_x + 4, feather_y),
+                (feather_x + 8, feather_y + 8),
+                (right_wing_x + 5, y + 25)
+            ]
+            color = wing_gold if i % 2 == 0 else wing_base_color
+            pygame.draw.polygon(screen, color, feather_pts)
+            pygame.draw.polygon(screen, wing_dark, feather_pts, 1)
+
+        for i in range(3):
+            feather_x = right_wing_x + 4 + i * 5 - right_wing_offset // 4
+            feather_y = y + 12 + i * 5 - abs(right_wing_offset) // 3
+            pygame.draw.ellipse(screen, wing_highlight, (feather_x - 10, feather_y, 10, 16))
+            pygame.draw.ellipse(screen, wing_dark, (feather_x - 10, feather_y, 10, 16), 1)
+
+        # Ornate key body
+        key_gold = (230, 195, 80)
+        key_dark = (180, 145, 40)
+        key_highlight = (255, 235, 150)
+        key_shadow = (140, 110, 30)
+
+        # Key bow (ornate handle) - intricate design
+        bow_x = screen_x + w//2
+        bow_y = y + 6
+
+        # Outer ornate frame
+        pygame.draw.ellipse(screen, key_gold, (bow_x - 10, bow_y, 20, 22))
+        pygame.draw.ellipse(screen, key_dark, (bow_x - 10, bow_y, 20, 22), 2)
+        # Inner cutout
+        pygame.draw.ellipse(screen, (60, 50, 30), (bow_x - 6, bow_y + 5, 12, 12))
+        # Decorative details
+        pygame.draw.circle(screen, key_highlight, (bow_x - 6, bow_y + 5), 3)
+        pygame.draw.circle(screen, key_highlight, (bow_x + 6, bow_y + 5), 3)
+        pygame.draw.circle(screen, key_highlight, (bow_x, bow_y + 2), 2)
+        # Top crown
+        pygame.draw.polygon(screen, key_gold, [
+            (bow_x - 6, bow_y), (bow_x, bow_y - 5), (bow_x + 6, bow_y)
+        ])
+        pygame.draw.polygon(screen, key_dark, [
+            (bow_x - 6, bow_y), (bow_x, bow_y - 5), (bow_x + 6, bow_y)
+        ], 1)
+
+        # Key shaft with detail
+        shaft_x = bow_x - 3
+        pygame.draw.rect(screen, key_gold, (shaft_x, bow_y + 20, 6, 22))
+        pygame.draw.rect(screen, key_shadow, (shaft_x, bow_y + 20, 2, 22))
+        pygame.draw.rect(screen, key_highlight, (shaft_x + 4, bow_y + 20, 2, 22))
+        pygame.draw.rect(screen, key_dark, (shaft_x, bow_y + 20, 6, 22), 1)
+        # Shaft ring detail
+        pygame.draw.rect(screen, key_dark, (shaft_x - 1, bow_y + 26, 8, 3))
+        pygame.draw.rect(screen, key_highlight, (shaft_x, bow_y + 27, 6, 1))
+
+        # Key bit (teeth) - ornate
+        bit_y = bow_y + 40
+        pygame.draw.rect(screen, key_gold, (shaft_x - 6, bit_y, 10, 8))
+        pygame.draw.rect(screen, key_gold, (shaft_x - 3, bit_y + 6, 6, 5))
+        pygame.draw.rect(screen, key_gold, (shaft_x + 2, bit_y + 3, 6, 6))
+        # Teeth details
+        pygame.draw.rect(screen, key_shadow, (shaft_x - 6, bit_y, 3, 8))
+        pygame.draw.rect(screen, key_highlight, (shaft_x + 1, bit_y + 1, 2, 6))
+        pygame.draw.rect(screen, key_dark, (shaft_x - 6, bit_y, 10, 8), 1)
+        pygame.draw.rect(screen, key_dark, (shaft_x - 3, bit_y + 6, 6, 5), 1)
+
+        # Magical sparkle at key tip
+        if int(t / 80) % 4 == 0:
+            sparkle_surf = pygame.Surface((12, 12), pygame.SRCALPHA)
+            pygame.draw.line(sparkle_surf, (255, 255, 255, 200), (6, 0), (6, 12), 2)
+            pygame.draw.line(sparkle_surf, (255, 255, 255, 200), (0, 6), (12, 6), 2)
+            pygame.draw.line(sparkle_surf, (255, 255, 255, 150), (2, 2), (10, 10), 1)
+            pygame.draw.line(sparkle_surf, (255, 255, 255, 150), (10, 2), (2, 10), 1)
+            screen.blit(sparkle_surf, (bow_x - 6, bit_y + 6))
 
     def _draw_chess_piece(self, screen, screen_x, y):
         """Draw Chess Knight - imposing stone warrior."""
