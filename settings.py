@@ -70,9 +70,9 @@ PLAYER_MAX_FALL_SPEED = 10
 COYOTE_TIME_MS = 100
 JUMP_BUFFER_MS = 120
 
-# Player settings
-PLAYER_WIDTH = 40
-PLAYER_HEIGHT = 60
+# Player settings (larger for better visibility)
+PLAYER_WIDTH = 48
+PLAYER_HEIGHT = 72
 INVINCIBILITY_TIME = 1500
 
 # Co-op lockstep tuning
@@ -88,7 +88,7 @@ PLATFORM_HEIGHT = 20
 
 # Attack settings
 ATTACK_DURATION = 300
-ATTACK_COOLDOWN = 300  # Reduced from 400 - snappier combat
+ATTACK_COOLDOWN = 200  # Fast attacks for satisfying combat feel
 PROJECTILE_SPEED = 9
 PROJECTILE_SIZE = 12
 SPECIAL_COOLDOWN = 4000  # Reduced from 6000 - more impactful specials

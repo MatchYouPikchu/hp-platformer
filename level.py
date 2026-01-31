@@ -7,102 +7,152 @@ from settings import *
 
 
 class Platform:
-    """A platform with improved graphics."""
+    """A platform with polished wooden plank graphics and support beams."""
 
     def __init__(self, x, y, width, height, style='stone'):
         self.rect = pygame.Rect(x, y, width, height)
         self.style = style
-        self.tiles = []
-        self._generate_tiles()
+        self.plank_variations = []
+        self._generate_planks()
 
-    def _generate_tiles(self):
-        """Generate tile pattern for the platform."""
-        tile_w = 32
-        num_tiles = max(1, self.rect.width // tile_w)
-        for i in range(num_tiles):
-            # Slight variation in each tile
-            variation = random.randint(-10, 10)
-            self.tiles.append(variation)
+    def _generate_planks(self):
+        """Generate plank pattern variations."""
+        plank_w = 40
+        num_planks = max(1, self.rect.width // plank_w + 1)
+        random.seed(self.rect.x + self.rect.y)  # Consistent variation per platform
+        for i in range(num_planks):
+            self.plank_variations.append({
+                'hue': random.randint(-15, 15),
+                'grain_offset': random.randint(0, 10),
+                'knot_pos': random.randint(5, 25) if random.random() > 0.6 else -1
+            })
+        random.seed()
 
     def draw(self, screen, camera_x):
         screen_x = self.rect.x - camera_x
-        if screen_x + self.rect.width < 0 or screen_x > SCREEN_WIDTH:
+        if screen_x + self.rect.width < -50 or screen_x > SCREEN_WIDTH + 50:
             return
 
-        tile_w = 32
-        num_tiles = max(1, self.rect.width // tile_w)
-        remainder = self.rect.width % tile_w
+        # Universal wooden platform style for polished look
+        # Rich wood colors
+        wood_base = (139, 90, 43)      # Warm brown
+        wood_light = (180, 130, 70)    # Highlight
+        wood_dark = (90, 55, 25)       # Shadow/grain
+        wood_edge = (70, 40, 15)       # Dark edge
 
-        if self.style == 'stone':
-            base_color = (100, 100, 110)
-            highlight = (130, 130, 140)
-            shadow = (70, 70, 80)
-        elif self.style == 'brick':
-            base_color = (140, 80, 60)
-            highlight = (170, 100, 75)
-            shadow = (100, 55, 40)
-        elif self.style == 'wood':
-            base_color = (120, 80, 50)
-            highlight = (150, 105, 70)
-            shadow = (85, 55, 35)
-        elif self.style == 'grass':
-            base_color = (80, 60, 45)
-            highlight = (100, 80, 55)
-            shadow = (55, 40, 30)
-        elif self.style == 'dark':
-            base_color = (50, 50, 60)
-            highlight = (70, 70, 85)
-            shadow = (30, 30, 40)
-        else:
-            base_color = GRAY
-            highlight = tuple(min(255, c + 30) for c in GRAY)
-            shadow = tuple(max(0, c - 30) for c in GRAY)
+        plank_w = 40
+        plank_h = self.rect.height
 
-        # Draw tiles
-        for i in range(num_tiles):
-            tx = screen_x + i * tile_w
-            tw = tile_w if i < num_tiles - 1 or remainder == 0 else remainder + tile_w
-            variation = self.tiles[i % len(self.tiles)] if self.tiles else 0
-            
-            # Tile base
-            tile_color = tuple(max(0, min(255, c + variation)) for c in base_color)
-            pygame.draw.rect(screen, tile_color, (tx, self.rect.y, tw, self.rect.height))
-            
-            # Brick pattern for brick/stone
-            if self.style in ('stone', 'brick'):
-                # Horizontal line
-                pygame.draw.line(screen, shadow, (tx, self.rect.y + self.rect.height // 2),
-                               (tx + tw, self.rect.y + self.rect.height // 2), 1)
-                # Vertical lines (offset on alternate rows)
-                if i % 2 == 0:
-                    pygame.draw.line(screen, shadow, (tx + tw // 2, self.rect.y),
-                                   (tx + tw // 2, self.rect.y + self.rect.height // 2), 1)
-                else:
-                    pygame.draw.line(screen, shadow, (tx + tw // 2, self.rect.y + self.rect.height // 2),
-                                   (tx + tw // 2, self.rect.y + self.rect.height), 1)
-            
-            # Wood grain
-            elif self.style == 'wood':
-                for j in range(3):
-                    gy = self.rect.y + 5 + j * 6
-                    pygame.draw.line(screen, shadow, (tx + 2, gy), (tx + tw - 2, gy), 1)
+        # Draw support beams FIRST (behind platform)
+        self._draw_supports(screen, screen_x)
 
-        # Top highlight (grass top for grass style)
-        if self.style == 'grass':
-            pygame.draw.rect(screen, (60, 140, 60), (screen_x, self.rect.y, self.rect.width, 6))
-            pygame.draw.rect(screen, (80, 180, 80), (screen_x, self.rect.y, self.rect.width, 3))
-            # Grass blades
-            for i in range(0, self.rect.width, 8):
-                gx = screen_x + i + random.randint(0, 4)
-                pygame.draw.line(screen, (50, 130, 50), (gx, self.rect.y), (gx + 2, self.rect.y - 4), 1)
-        else:
-            pygame.draw.rect(screen, highlight, (screen_x, self.rect.y, self.rect.width, 3))
+        # Draw main platform surface (wooden planks)
+        num_planks = max(1, self.rect.width // plank_w + 1)
+
+        for i in range(num_planks):
+            px = screen_x + i * plank_w
+            pw = min(plank_w, self.rect.width - i * plank_w)
+            if pw <= 0:
+                break
+            if px + pw < 0 or px > SCREEN_WIDTH:
+                continue
+
+            var = self.plank_variations[i % len(self.plank_variations)]
+
+            # Plank base color with variation
+            base = tuple(max(0, min(255, c + var['hue'])) for c in wood_base)
+            light = tuple(max(0, min(255, c + var['hue'])) for c in wood_light)
+            dark = tuple(max(0, min(255, c + var['hue'])) for c in wood_dark)
+
+            # Main plank body
+            pygame.draw.rect(screen, base, (px, self.rect.y, pw, plank_h))
+
+            # Top highlight bevel
+            pygame.draw.rect(screen, light, (px, self.rect.y, pw, 4))
+
+            # Left edge highlight
+            pygame.draw.rect(screen, light, (px, self.rect.y, 3, plank_h))
 
             # Bottom shadow
-        pygame.draw.rect(screen, shadow, (screen_x, self.rect.y + self.rect.height - 3, self.rect.width, 3))
-        
-        # Border
-        pygame.draw.rect(screen, shadow, (screen_x, self.rect.y, self.rect.width, self.rect.height), 1)
+            pygame.draw.rect(screen, dark, (px, self.rect.y + plank_h - 4, pw, 4))
+
+            # Right edge shadow (plank gap)
+            pygame.draw.rect(screen, wood_edge, (px + pw - 2, self.rect.y, 2, plank_h))
+
+            # Wood grain lines
+            grain_y = var['grain_offset']
+            for g in range(3):
+                gy = self.rect.y + 6 + g * 7 + grain_y % 4
+                if gy < self.rect.y + plank_h - 3:
+                    pygame.draw.line(screen, dark, (px + 4, gy), (px + pw - 4, gy), 1)
+
+            # Wood knot (on some planks)
+            if var['knot_pos'] > 0:
+                kx = px + var['knot_pos']
+                ky = self.rect.y + plank_h // 2
+                pygame.draw.circle(screen, dark, (kx, ky), 4)
+                pygame.draw.circle(screen, (60, 35, 15), (kx, ky), 2)
+
+        # Platform edge trim (top and bottom borders)
+        pygame.draw.rect(screen, wood_edge, (screen_x, self.rect.y, self.rect.width, 2))
+        pygame.draw.rect(screen, wood_edge, (screen_x, self.rect.y + plank_h - 2, self.rect.width, 2))
+
+        # Decorative metal brackets on ends
+        if self.rect.width > 60:
+            self._draw_bracket(screen, screen_x + 5, self.rect.y)
+            self._draw_bracket(screen, screen_x + self.rect.width - 15, self.rect.y)
+
+    def _draw_supports(self, screen, screen_x):
+        """Draw wooden support beams underneath platform."""
+        beam_color = (100, 60, 30)
+        beam_dark = (70, 40, 20)
+        beam_light = (130, 85, 45)
+
+        # Vertical support posts
+        support_spacing = 100
+        num_supports = max(2, self.rect.width // support_spacing + 1)
+
+        for i in range(num_supports):
+            if i == 0:
+                sx = screen_x + 10
+            elif i == num_supports - 1:
+                sx = screen_x + self.rect.width - 20
+            else:
+                sx = screen_x + i * support_spacing
+
+            if sx < -20 or sx > SCREEN_WIDTH + 20:
+                continue
+
+            # Support post (vertical beam going down)
+            post_h = 50 + (i % 2) * 15  # Vary height slightly
+            py = self.rect.y + self.rect.height
+
+            # Main post
+            pygame.draw.rect(screen, beam_color, (sx, py, 12, post_h))
+            # Left highlight
+            pygame.draw.rect(screen, beam_light, (sx, py, 3, post_h))
+            # Right shadow
+            pygame.draw.rect(screen, beam_dark, (sx + 9, py, 3, post_h))
+
+            # Diagonal brace
+            if i < num_supports - 1:
+                brace_end_x = sx + support_spacing // 2
+                brace_end_y = py + post_h - 10
+                pygame.draw.line(screen, beam_dark, (sx + 6, py + 5),
+                               (brace_end_x, brace_end_y), 4)
+                pygame.draw.line(screen, beam_color, (sx + 6, py + 5),
+                               (brace_end_x, brace_end_y), 2)
+
+    def _draw_bracket(self, screen, x, y):
+        """Draw decorative metal bracket."""
+        metal = (80, 80, 90)
+        metal_light = (120, 120, 130)
+        # Bracket shape
+        pygame.draw.rect(screen, metal, (x, y + 2, 10, self.rect.height - 4))
+        pygame.draw.rect(screen, metal_light, (x + 1, y + 3, 3, self.rect.height - 6))
+        # Rivets
+        pygame.draw.circle(screen, metal_light, (x + 5, y + 6), 2)
+        pygame.draw.circle(screen, metal_light, (x + 5, y + self.rect.height - 6), 2)
 
 
 class Hazard:
@@ -224,12 +274,29 @@ class Collectible:
         draw_y = int(self.y + bob)
 
         if self.collect_type == 'coin':
-            # Golden coin with shine
-            pygame.draw.circle(screen, GOLD, (screen_x + 12, draw_y + 12), 12)
-            pygame.draw.circle(screen, YELLOW, (screen_x + 12, draw_y + 12), 9)
-            pygame.draw.circle(screen, (255, 250, 200), (screen_x + 9, draw_y + 8), 4)
-            # Coin symbol
-            pygame.draw.circle(screen, GOLD, (screen_x + 12, draw_y + 12), 5, 2)
+            # Golden coin with beautiful glow
+            cx, cy = screen_x + 12, draw_y + 12
+
+            # Outer glow (pulsing)
+            glow_pulse = abs(math.sin(pygame.time.get_ticks() * 0.004 + self.bob_offset)) * 0.4 + 0.6
+            glow_surf = pygame.Surface((40, 40), pygame.SRCALPHA)
+            glow_alpha = int(60 * glow_pulse)
+            pygame.draw.circle(glow_surf, (255, 200, 50, glow_alpha), (20, 20), 18)
+            pygame.draw.circle(glow_surf, (255, 220, 100, glow_alpha // 2), (20, 20), 14)
+            screen.blit(glow_surf, (cx - 20, cy - 20))
+
+            # Coin body - gradient effect
+            pygame.draw.circle(screen, (180, 140, 20), (cx, cy), 13)  # Dark edge
+            pygame.draw.circle(screen, (255, 200, 50), (cx, cy), 12)   # Main gold
+            pygame.draw.circle(screen, (255, 220, 80), (cx - 1, cy - 1), 10)  # Lighter center
+            pygame.draw.circle(screen, (255, 240, 150), (cx - 3, cy - 3), 5)   # Highlight
+
+            # Inner ring detail
+            pygame.draw.circle(screen, (200, 160, 40), (cx, cy), 7, 2)
+
+            # Bright sparkle
+            pygame.draw.circle(screen, (255, 255, 220), (cx - 4, cy - 4), 3)
+            pygame.draw.circle(screen, WHITE, (cx - 4, cy - 4), 2)
             
         elif self.collect_type == 'health':
             # Health potion (red)
@@ -284,15 +351,54 @@ class Decoration:
             return
 
         if self.dec_type == 'tree':
-            # Trunk with bark texture
-            pygame.draw.rect(screen, (80, 50, 30), (screen_x + 8, self.y, 24, 65))
-            pygame.draw.rect(screen, (60, 40, 25), (screen_x + 12, self.y, 4, 65))
-            pygame.draw.rect(screen, (100, 65, 40), (screen_x + 24, self.y, 4, 65))
-            # Foliage layers
-            pygame.draw.circle(screen, (30, 100, 30), (screen_x + 20, self.y - 20), 38)
-            pygame.draw.circle(screen, (40, 130, 40), (screen_x + 20, self.y - 10), 32)
-            pygame.draw.circle(screen, (50, 150, 50), (screen_x + 20, self.y - 25), 25)
-            pygame.draw.circle(screen, (70, 170, 70), (screen_x + 15, self.y - 30), 15)
+            # Beautiful lush tree with depth
+            tx = screen_x + 20
+            ty = self.y
+
+            # Trunk with detailed bark
+            trunk_color = (90, 60, 35)
+            trunk_dark = (60, 40, 25)
+            trunk_light = (120, 80, 50)
+
+            # Main trunk
+            pygame.draw.rect(screen, trunk_color, (tx - 10, ty, 20, 70))
+            # Bark texture - left shadow
+            pygame.draw.rect(screen, trunk_dark, (tx - 10, ty, 6, 70))
+            # Bark texture - right highlight
+            pygame.draw.rect(screen, trunk_light, (tx + 4, ty, 4, 70))
+            # Bark lines
+            for i in range(5):
+                by = ty + 10 + i * 12
+                pygame.draw.line(screen, trunk_dark, (tx - 8, by), (tx + 6, by + 3), 2)
+
+            # Root base
+            pygame.draw.ellipse(screen, trunk_dark, (tx - 18, ty + 60, 36, 15))
+
+            # Foliage - multiple layers for depth (back to front)
+            foliage_dark = (25, 80, 30)
+            foliage_mid = (40, 120, 45)
+            foliage_light = (60, 150, 65)
+            foliage_highlight = (90, 180, 95)
+
+            # Back layer (darkest, largest)
+            pygame.draw.circle(screen, foliage_dark, (tx - 15, ty - 15), 32)
+            pygame.draw.circle(screen, foliage_dark, (tx + 18, ty - 10), 30)
+            pygame.draw.circle(screen, foliage_dark, (tx, ty - 35), 28)
+
+            # Mid layer
+            pygame.draw.circle(screen, foliage_mid, (tx - 8, ty - 20), 28)
+            pygame.draw.circle(screen, foliage_mid, (tx + 12, ty - 18), 26)
+            pygame.draw.circle(screen, foliage_mid, (tx, ty - 40), 24)
+
+            # Front layer (lightest)
+            pygame.draw.circle(screen, foliage_light, (tx - 5, ty - 25), 22)
+            pygame.draw.circle(screen, foliage_light, (tx + 8, ty - 22), 20)
+            pygame.draw.circle(screen, foliage_light, (tx, ty - 42), 18)
+
+            # Highlight spots
+            pygame.draw.circle(screen, foliage_highlight, (tx - 12, ty - 35), 10)
+            pygame.draw.circle(screen, foliage_highlight, (tx + 5, ty - 45), 8)
+            pygame.draw.circle(screen, foliage_highlight, (tx + 15, ty - 28), 9)
 
         elif self.dec_type == 'castle_tower':
             # Stone tower with detail
@@ -317,17 +423,47 @@ class Decoration:
                 pygame.draw.rect(screen, (255, 240, 200), (screen_x + 28, wy + 6, 10, 16), border_radius=2)
 
         elif self.dec_type == 'torch':
-            # Wall mount
-            pygame.draw.rect(screen, (60, 50, 45), (screen_x - 2, self.y + 15, 14, 8))
-            # Handle
-            pygame.draw.rect(screen, (90, 60, 40), (screen_x, self.y, 10, 35))
-            pygame.draw.rect(screen, (70, 45, 30), (screen_x + 2, self.y, 3, 35))
+            t = pygame.time.get_ticks()
+            tx = screen_x + 5
+            ty = self.y
+
+            # Wall mount bracket (metal)
+            pygame.draw.rect(screen, (70, 60, 55), (tx - 4, ty + 25, 18, 10))
+            pygame.draw.rect(screen, (50, 45, 40), (tx - 4, ty + 25, 18, 10), 2)
+
+            # Torch handle (wood)
+            pygame.draw.rect(screen, (100, 65, 40), (tx, ty, 10, 40))
+            pygame.draw.rect(screen, (80, 50, 30), (tx, ty, 3, 40))
+            pygame.draw.rect(screen, (120, 80, 50), (tx + 7, ty, 2, 40))
+
+            # Torch top wrap
+            pygame.draw.rect(screen, (60, 50, 45), (tx - 2, ty - 5, 14, 8))
+
             # Flame animation
-            flicker = math.sin(pygame.time.get_ticks() * 0.01) * 3
-            pygame.draw.ellipse(screen, (255, 100, 30), (screen_x - 6, self.y - 28 + flicker, 22, 30))
-            pygame.draw.ellipse(screen, ORANGE, (screen_x - 3, self.y - 22 + flicker, 16, 22))
-            pygame.draw.ellipse(screen, YELLOW, (screen_x, self.y - 18 + flicker, 10, 16))
-            pygame.draw.ellipse(screen, (255, 255, 200), (screen_x + 2, self.y - 14 + flicker, 6, 10))
+            flicker = math.sin(t * 0.012) * 4
+            flicker2 = math.sin(t * 0.018 + 1) * 3
+
+            # Large outer glow
+            glow_surf = pygame.Surface((80, 80), pygame.SRCALPHA)
+            glow_pulse = int(abs(math.sin(t * 0.008)) * 25)
+            pygame.draw.circle(glow_surf, (255, 150, 50, 35 + glow_pulse), (40, 40), 35)
+            pygame.draw.circle(glow_surf, (255, 180, 80, 25 + glow_pulse), (40, 40), 25)
+            pygame.draw.circle(glow_surf, (255, 200, 100, 20), (40, 40), 18)
+            screen.blit(glow_surf, (tx - 35, ty - 60))
+
+            # Flame layers (outer to inner)
+            # Red outer
+            pygame.draw.ellipse(screen, (200, 60, 20),
+                              (tx - 8 + flicker2, ty - 35 + flicker, 26, 38))
+            # Orange mid
+            pygame.draw.ellipse(screen, (255, 120, 30),
+                              (tx - 5 + flicker, ty - 30 + flicker, 20, 32))
+            # Yellow inner
+            pygame.draw.ellipse(screen, (255, 200, 50),
+                              (tx - 2 + flicker, ty - 25 + flicker, 14, 24))
+            # White core
+            pygame.draw.ellipse(screen, (255, 250, 200),
+                              (tx + 1 + flicker, ty - 18 + flicker, 8, 14))
 
         elif self.dec_type == 'banner':
             # Pole
@@ -504,9 +640,9 @@ class Level:
         for x in [150, 220, 310, 380, 460, 530, 620, 700]:
             self.collectibles.append(Collectible(x, ground_y - 200 + (x % 50), 'coin'))
         
-        # Dursley "obstacles" (enemies as angry Dursleys/obstacles)
-        self.enemy_spawns.append((300, ground_y - ENEMY_HEIGHT, 'walker'))
-        self.enemy_spawns.append((550, ground_y - ENEMY_HEIGHT, 'walker'))
+        # Dursley "obstacles" - moved back to give player space to learn controls
+        self.enemy_spawns.append((600, ground_y - ENEMY_HEIGHT, 'walker'))
+        self.enemy_spawns.append((750, ground_y - ENEMY_HEIGHT, 'walker'))
         
         # Decorations - suburban feel
         self.decorations.append(Decoration(50, ground_y - 65, 'tree'))
@@ -661,12 +797,13 @@ class Level:
         self.platforms.append(Platform(5020, ground_y - 280, 120, PLATFORM_HEIGHT, 'stone'))
         self.platforms.append(Platform(5180, ground_y - 180, 100, PLATFORM_HEIGHT, 'stone'))
         
-        # MANY flying keys (the enchanted keys!)
-        self.enemy_spawns.append((4900, ground_y - 250, 'flying_key'))
-        self.enemy_spawns.append((5050, ground_y - 350, 'flying_key'))
-        self.enemy_spawns.append((5150, ground_y - 280, 'flying_key'))
-        self.enemy_spawns.append((5000, ground_y - 180, 'flying_key'))
-        
+        # Flying keys (the enchanted keys!) - reduced from 4 to 2 for fair difficulty
+        self.enemy_spawns.append((4950, ground_y - 250, 'flying_key'))
+        self.enemy_spawns.append((5100, ground_y - 300, 'flying_key'))
+
+        # Health pickup before the flying keys section (fairness)
+        self.collectibles.append(Collectible(4700, ground_y - 100, 'health'))
+
         # The right key! (damage boost)
         self.collectibles.append(Collectible(5080, ground_y - 340, 'damage'))
         
@@ -1031,61 +1168,100 @@ class Level:
 
         # Create surfaces for blending
         if outdoor_alpha > 10:
-            # OUTDOOR - Stars, moon, distant castle
-            # Stars (slow parallax)
-            star_offset = int(camera_x * 0.03) % 200
+            # OUTDOOR - Beautiful starry night sky
+            # ============================================
+            # STARS - Many more with varying sizes and brightness
+            # ============================================
+            star_offset = int(camera_x * 0.02) % 300
             random.seed(42)
-            for i in range(30):
-                star_x = (i * 100 + random.randint(0, 80) - star_offset) % (SCREEN_WIDTH + 400) - 200
-                star_y = 15 + random.randint(0, 180)
-                size = 1 + random.randint(0, 1)
-                twinkle = abs(math.sin(t * 0.002 + i)) * 0.5 + 0.5
-                color = tuple(int(255 * twinkle) for _ in range(3))
-                pygame.draw.circle(screen, color, (int(star_x), star_y), size)
+
+            # Large bright stars (fewer)
+            for i in range(15):
+                star_x = (i * 150 + random.randint(0, 120) - star_offset) % (SCREEN_WIDTH + 400) - 200
+                star_y = 20 + random.randint(0, 150)
+                twinkle = abs(math.sin(t * 0.003 + i * 0.7)) * 0.4 + 0.6
+                brightness = int(255 * twinkle)
+                # Star with glow
+                glow_color = (brightness // 3, brightness // 3, brightness // 2)
+                pygame.draw.circle(screen, glow_color, (int(star_x), star_y), 4)
+                pygame.draw.circle(screen, (brightness, brightness, brightness), (int(star_x), star_y), 2)
+                # Cross sparkle on brightest stars
+                if twinkle > 0.85:
+                    pygame.draw.line(screen, (brightness, brightness, brightness),
+                                   (int(star_x) - 4, star_y), (int(star_x) + 4, star_y), 1)
+                    pygame.draw.line(screen, (brightness, brightness, brightness),
+                                   (int(star_x), star_y - 4), (int(star_x), star_y + 4), 1)
+
+            # Medium stars
+            for i in range(40):
+                star_x = (i * 60 + random.randint(0, 50) - star_offset * 0.8) % (SCREEN_WIDTH + 500) - 250
+                star_y = 10 + random.randint(0, 200)
+                twinkle = abs(math.sin(t * 0.004 + i * 1.3)) * 0.3 + 0.5
+                brightness = int(220 * twinkle)
+                pygame.draw.circle(screen, (brightness, brightness, brightness), (int(star_x), star_y), 1)
+
+            # Tiny distant stars (many)
+            for i in range(80):
+                star_x = (i * 30 + random.randint(0, 25) - star_offset * 0.5) % (SCREEN_WIDTH + 600) - 300
+                star_y = 5 + random.randint(0, 220)
+                twinkle = abs(math.sin(t * 0.005 + i * 2.1)) * 0.4 + 0.3
+                brightness = int(180 * twinkle)
+                # Single pixel stars
+                if 0 <= star_x < SCREEN_WIDTH and star_y < 250:
+                    screen.set_at((int(star_x), star_y), (brightness, brightness, brightness))
             random.seed()
 
-            # Beautiful moon with glow
-            moon_x = 750 - int(camera_x * 0.02)
-            if -100 < moon_x < SCREEN_WIDTH + 100:
-                # Moon glow
-                glow_surf = pygame.Surface((140, 140), pygame.SRCALPHA)
-                glow_pulse = int(abs(math.sin(t * 0.001)) * 20)
-                for i in range(5):
-                    alpha = 30 - i * 5 + glow_pulse // 5
-                    pygame.draw.circle(glow_surf, (200, 210, 230, alpha), (70, 70), 60 - i * 8)
-                screen.blit(glow_surf, (moon_x - 70, 20))
+            # ============================================
+            # MOON - Large and atmospheric with strong glow
+            # ============================================
+            moon_x = 680 - int(camera_x * 0.015)
+            moon_y = 100
+            moon_radius = 70  # Bigger moon!
 
-                # Moon body
-                pygame.draw.circle(screen, (235, 235, 220), (moon_x, 90), 50)
-                pygame.draw.circle(screen, (220, 220, 200), (moon_x - 15, 80), 42)
+            if -150 < moon_x < SCREEN_WIDTH + 150:
+                # Outer atmospheric glow (large, soft)
+                glow_surf = pygame.Surface((400, 400), pygame.SRCALPHA)
+                glow_pulse = int(abs(math.sin(t * 0.0008)) * 15)
+
+                # Multiple glow layers for atmosphere
+                for i in range(8):
+                    glow_r = 180 - i * 18
+                    alpha = 12 + glow_pulse // 3 - i * 1
+                    if alpha > 0:
+                        pygame.draw.circle(glow_surf, (180, 200, 230, alpha), (200, 200), glow_r)
+
+                # Warm inner glow
+                for i in range(4):
+                    inner_r = 100 - i * 15
+                    alpha = 25 - i * 5
+                    pygame.draw.circle(glow_surf, (220, 220, 200, alpha), (200, 200), inner_r)
+
+                screen.blit(glow_surf, (moon_x - 200, moon_y - 200 + 50))
+
+                # Moon body - gradient effect
+                pygame.draw.circle(screen, (245, 245, 235), (moon_x, moon_y + 50), moon_radius)
+                pygame.draw.circle(screen, (235, 235, 225), (moon_x - 10, moon_y + 45), moon_radius - 5)
+                pygame.draw.circle(screen, (250, 250, 245), (moon_x - 20, moon_y + 35), moon_radius - 15)
+
                 # Craters with depth
-                pygame.draw.circle(screen, (210, 210, 195), (moon_x + 15, 100), 8)
-                pygame.draw.circle(screen, (200, 200, 185), (moon_x + 16, 101), 6)
-                pygame.draw.circle(screen, (210, 210, 195), (moon_x - 5, 75), 6)
-                pygame.draw.circle(screen, (215, 215, 200), (moon_x + 25, 80), 4)
+                crater_color = (215, 215, 200)
+                crater_shadow = (200, 200, 185)
+                pygame.draw.circle(screen, crater_color, (moon_x + 25, moon_y + 70), 12)
+                pygame.draw.circle(screen, crater_shadow, (moon_x + 27, moon_y + 72), 9)
+                pygame.draw.circle(screen, crater_color, (moon_x - 15, moon_y + 35), 10)
+                pygame.draw.circle(screen, crater_shadow, (moon_x - 13, moon_y + 37), 7)
+                pygame.draw.circle(screen, crater_color, (moon_x + 10, moon_y + 20), 6)
+                pygame.draw.circle(screen, crater_color, (moon_x + 35, moon_y + 45), 5)
+                pygame.draw.circle(screen, crater_color, (moon_x - 25, moon_y + 65), 8)
 
             # Distant Hogwarts castle silhouette
             castle_offset = int(camera_x * 0.08)
             self._draw_distant_castle(screen, castle_offset, t)
 
-            # Distant mountains/hills (medium parallax)
-            hill_offset = int(camera_x * 0.15)
-            for layer in range(2):
-                layer_offset = layer * 50
-                if self.level_num == 1:
-                    color = (40 + layer * 15, 45 + layer * 15, 60 + layer * 15)
-                else:
-                    color = (30 + layer * 10, 30 + layer * 10, 40 + layer * 10)
-                for i in range(12):
-                    hx = i * 220 - ((hill_offset + layer_offset) % 220) - 100
-                    height = 120 + (i % 4) * 35 + layer * 30
-                    pygame.draw.polygon(screen, color, [
-                        (hx, SCREEN_HEIGHT),
-                        (hx + 60, SCREEN_HEIGHT - height),
-                        (hx + 120, SCREEN_HEIGHT - height + 20),
-                        (hx + 180, SCREEN_HEIGHT - height - 10),
-                        (hx + 240, SCREEN_HEIGHT)
-                    ])
+            # ============================================
+            # MOUNTAINS - Detailed with snow caps and layers
+            # ============================================
+            self._draw_detailed_mountains(screen, camera_x, t)
 
         # INDOOR elements with smooth blending
         if indoor_alpha > 10:
@@ -1238,6 +1414,123 @@ class Level:
                 spark_x = tx + random.randint(-8, 8)
                 spark_y = ty - 35 - random.randint(0, 15)
                 pygame.draw.circle(screen, (255, 220, 100), (spark_x, spark_y), 2)
+
+    def _draw_detailed_mountains(self, screen, camera_x, t):
+        """Draw beautiful layered mountains with snow caps."""
+        # Back layer - distant dark mountains
+        hill_offset = int(camera_x * 0.08)
+        back_color = (35, 40, 55)
+        back_highlight = (45, 52, 70)
+
+        for i in range(8):
+            mx = i * 280 - (hill_offset % 280) - 140
+            # Varied peak heights
+            peak_heights = [180, 220, 160, 240, 190, 210, 170, 230]
+            peak_h = peak_heights[i % len(peak_heights)]
+
+            # Mountain silhouette
+            points = [
+                (mx, SCREEN_HEIGHT),
+                (mx + 50, SCREEN_HEIGHT - peak_h * 0.6),
+                (mx + 100, SCREEN_HEIGHT - peak_h * 0.85),
+                (mx + 140, SCREEN_HEIGHT - peak_h),  # Peak
+                (mx + 180, SCREEN_HEIGHT - peak_h * 0.8),
+                (mx + 230, SCREEN_HEIGHT - peak_h * 0.5),
+                (mx + 280, SCREEN_HEIGHT)
+            ]
+            pygame.draw.polygon(screen, back_color, points)
+
+            # Subtle highlight on one side
+            highlight_points = [
+                (mx + 100, SCREEN_HEIGHT - peak_h * 0.85),
+                (mx + 140, SCREEN_HEIGHT - peak_h),
+                (mx + 145, SCREEN_HEIGHT - peak_h * 0.9),
+                (mx + 105, SCREEN_HEIGHT - peak_h * 0.75)
+            ]
+            pygame.draw.polygon(screen, back_highlight, highlight_points)
+
+        # Mid layer - main mountains with snow caps
+        mid_offset = int(camera_x * 0.12)
+        mid_color = (55, 60, 80)
+        mid_shadow = (40, 45, 60)
+        snow_color = (220, 225, 235)
+        snow_shadow = (180, 185, 200)
+
+        for i in range(6):
+            mx = i * 350 - (mid_offset % 350) - 175
+            # Taller peaks
+            peak_heights = [260, 300, 240, 320, 280, 290]
+            peak_h = peak_heights[i % len(peak_heights)]
+
+            # Main mountain body
+            left_base = mx - 20
+            right_base = mx + 370
+            peak_x = mx + 175
+
+            # Left slope
+            pygame.draw.polygon(screen, mid_color, [
+                (left_base, SCREEN_HEIGHT),
+                (peak_x, SCREEN_HEIGHT - peak_h),
+                (peak_x, SCREEN_HEIGHT)
+            ])
+            # Right slope (slightly darker)
+            pygame.draw.polygon(screen, mid_shadow, [
+                (peak_x, SCREEN_HEIGHT - peak_h),
+                (right_base, SCREEN_HEIGHT),
+                (peak_x, SCREEN_HEIGHT)
+            ])
+
+            # Ridge details
+            ridge_x = mx + 80
+            ridge_h = peak_h * 0.7
+            pygame.draw.polygon(screen, mid_shadow, [
+                (ridge_x, SCREEN_HEIGHT - ridge_h),
+                (ridge_x + 50, SCREEN_HEIGHT - ridge_h * 0.85),
+                (ridge_x + 30, SCREEN_HEIGHT)
+            ])
+
+            # SNOW CAP
+            snow_start_y = SCREEN_HEIGHT - peak_h
+            snow_end_y = SCREEN_HEIGHT - peak_h * 0.65
+
+            # Snow on peak
+            pygame.draw.polygon(screen, snow_color, [
+                (peak_x - 30, snow_end_y),
+                (peak_x, snow_start_y),
+                (peak_x + 25, snow_end_y + 10),
+            ])
+            # Snow shadow side
+            pygame.draw.polygon(screen, snow_shadow, [
+                (peak_x, snow_start_y),
+                (peak_x + 25, snow_end_y + 10),
+                (peak_x + 5, snow_end_y + 30)
+            ])
+
+            # Snow drip details
+            for s in range(3):
+                drip_x = peak_x - 20 + s * 18
+                drip_y = snow_end_y + s * 8 + 5
+                pygame.draw.polygon(screen, snow_color, [
+                    (drip_x, drip_y),
+                    (drip_x + 6, drip_y + 15),
+                    (drip_x - 6, drip_y + 15)
+                ])
+
+        # Front layer - closer hills/foothills
+        front_offset = int(camera_x * 0.2)
+        front_color = (45, 50, 65)
+
+        for i in range(10):
+            hx = i * 200 - (front_offset % 200) - 100
+            hill_h = 80 + (i % 4) * 25
+
+            pygame.draw.polygon(screen, front_color, [
+                (hx, SCREEN_HEIGHT),
+                (hx + 50, SCREEN_HEIGHT - hill_h * 0.7),
+                (hx + 100, SCREEN_HEIGHT - hill_h),
+                (hx + 150, SCREEN_HEIGHT - hill_h * 0.6),
+                (hx + 200, SCREEN_HEIGHT)
+            ])
 
     def _draw_floating_candles(self, screen, camera_x, t, alpha=255):
         """Draw floating magical candles like in the Great Hall."""
@@ -1563,13 +1856,15 @@ class Camera:
         self.target_x = max(0, min(self.target_x, LEVEL_WIDTH - SCREEN_WIDTH))
         self.x += (self.target_x - self.x) * 0.2
 
-        # Update screen shake
+        # Update screen shake using sine wave for smoother feel
         if self.shake_timer > 0:
             self.shake_timer -= 16  # Approximate dt
             progress = self.shake_timer / self.shake_duration if self.shake_duration > 0 else 0
             magnitude = self.shake_magnitude * progress
-            self.shake_offset_x = random.uniform(-magnitude, magnitude)
-            self.shake_offset_y = random.uniform(-magnitude, magnitude)
+            # Use sine waves at different frequencies for organic shake
+            elapsed = self.shake_duration - self.shake_timer
+            self.shake_offset_x = magnitude * math.sin(elapsed * 0.05)
+            self.shake_offset_y = magnitude * math.sin(elapsed * 0.07)  # Different freq for Y
         else:
             self.shake_offset_x = 0
             self.shake_offset_y = 0

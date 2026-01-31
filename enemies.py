@@ -125,7 +125,7 @@ class Enemy:
             self.shoot_cooldown = 0
             self.shoot_interval = 1200  # Shoots faster
             self.special_attack_cooldown = 0
-            self.special_attack_interval = 5000  # Special attack every 5 seconds
+            self.special_attack_interval = 7000  # Special attack every 7 seconds (was 5s - too frequent)
             self.is_enraged = False  # Gets enraged at low health
         else:
             # Default fallback
@@ -402,7 +402,7 @@ class Enemy:
                     if not self.is_enraged and self.health < self.max_health * 0.4:
                         self.is_enraged = True
                         self.speed = 2.8  # Faster when enraged
-                        self.shoot_interval = 800  # Shoot faster
+                        self.shoot_interval = 1000  # Shoot faster (was 800 - too spammy)
 
                     # Update special attack cooldown
                     if hasattr(self, 'special_attack_cooldown'):
@@ -2084,8 +2084,13 @@ class EnemyManager:
             if self.boss.is_death_animation_complete():
                 self.boss = None
 
-    def check_collisions(self, players):
-        """Check collisions between enemies and players. Returns hit events for feedback."""
+    def check_collisions(self, players, enemy_damage_mult=1.0):
+        """Check collisions between enemies and players. Returns hit events for feedback.
+
+        Args:
+            players: List of player objects
+            enemy_damage_mult: Difficulty-based damage multiplier (0.75=Easy, 1.0=Normal, 1.25=Hard)
+        """
         hit_events = []  # List of (x, y, damage, is_critical) for damage popups
 
         for enemy in self.enemies:
@@ -2099,14 +2104,18 @@ class EnemyManager:
                 # Enemy touching player
                 if enemy.rect.colliderect(player.rect):
                     if enemy.can_attack():
-                        damage = enemy.attack()
-                        player.take_damage(damage)
+                        base_damage = enemy.attack()
+                        # Apply difficulty scaling to enemy damage
+                        scaled_damage = int(base_damage * enemy_damage_mult)
+                        player.take_damage(scaled_damage)
 
                 # Enemy projectiles hitting player
                 for proj in enemy.projectiles[:]:
                     proj_rect = pygame.Rect(int(proj['x']) - 8, int(proj['y']) - 8, 16, 16)
                     if proj_rect.colliderect(player.rect):
-                        player.take_damage(proj['damage'])
+                        # Apply difficulty scaling to projectile damage
+                        scaled_damage = int(proj['damage'] * enemy_damage_mult)
+                        player.take_damage(scaled_damage)
                         enemy.projectiles.remove(proj)
 
                 # Player melee attack hitting enemy
@@ -2140,21 +2149,24 @@ class EnemyManager:
             for player in players:
                 if not player.is_alive():
                     continue
-                
-                # Boss touching player
+
+                # Boss touching player (apply difficulty scaling)
                 if self.boss.rect.colliderect(player.rect):
-                    player.take_damage(self.boss.damage)
-                
+                    scaled_damage = int(self.boss.damage * enemy_damage_mult)
+                    player.take_damage(scaled_damage)
+
                 # Boss melee attack hitting player
                 boss_attack_rect = self.boss.get_attack_rect()
                 if boss_attack_rect and boss_attack_rect.colliderect(player.rect):
-                    player.take_damage(self.boss.damage)
-                
+                    scaled_damage = int(self.boss.damage * enemy_damage_mult)
+                    player.take_damage(scaled_damage)
+
                 # Boss projectiles hitting player
                 for proj in self.boss.projectiles[:]:
                     proj_rect = pygame.Rect(int(proj['x']) - 10, int(proj['y']) - 10, 20, 20)
                     if proj_rect.colliderect(player.rect):
-                        player.take_damage(proj['damage'])
+                        scaled_damage = int(proj['damage'] * enemy_damage_mult)
+                        player.take_damage(scaled_damage)
                         self.boss.projectiles.remove(proj)
                 
                 # Player attacking boss

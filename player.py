@@ -1037,6 +1037,12 @@ class Player:
         self.projectiles = []
         self.attack_rect = None
 
+        # MANA system for ranged characters - prevents spamming
+        self.mana = 100
+        self.max_mana = 100
+        self.mana_regen_rate = 8  # Mana per second (takes ~3s to fully regen)
+        self.ranged_mana_cost = 20  # Each ranged attack costs 20 mana (5 shots max before waiting)
+
         # Special attack
         self.special_cooldown = 0
         self.special_effects = []
@@ -1128,21 +1134,33 @@ class Player:
         """Regular attack."""
         self.attacking = True
         self.attack_timer = ATTACK_DURATION
-        # Melee attacks have faster cooldown to compensate for range disadvantage
-        if self.character.attack_type == 'melee':
-            self.attack_cooldown = int(ATTACK_COOLDOWN * 0.6)  # 40% faster
-        else:
-            self.attack_cooldown = ATTACK_COOLDOWN
         self.attack_anim_timer = ATTACK_DURATION
 
         if self.character.attack_type == 'ranged':
-            proj_x = self.rect.right if self.facing_right else self.rect.left - PROJECTILE_SIZE
-            proj_y = self.rect.centery - PROJECTILE_SIZE // 2
-            self.projectiles.append(
-                Projectile(proj_x, proj_y, self.direction, self.character.damage, 
-                          self.character.secondary_color, character_name=self.character.name)
-            )
+            # Ranged attacks cost mana - can't spam infinitely
+            if self.mana < self.ranged_mana_cost:
+                # Not enough mana - attack fails (play empty sound?)
+                self.attacking = False
+                return
+
+            # Consume mana
+            self.mana -= self.ranged_mana_cost
+
+            # Ranged has LONGER cooldown (risk/reward balance)
+            self.attack_cooldown = int(ATTACK_COOLDOWN * 1.5)  # 50% slower than base
+
+            # Limit active projectiles to prevent screen spam
+            if len(self.projectiles) < 3:  # Max 3 projectiles at once
+                proj_x = self.rect.right if self.facing_right else self.rect.left - PROJECTILE_SIZE
+                proj_y = self.rect.centery - PROJECTILE_SIZE // 2
+                self.projectiles.append(
+                    Projectile(proj_x, proj_y, self.direction, self.character.damage,
+                              self.character.secondary_color, character_name=self.character.name)
+                )
         else:
+            # Melee attacks are faster - reward for getting close
+            self.attack_cooldown = int(ATTACK_COOLDOWN * 0.5)  # 50% faster
+
             # Melee attack - wider range to compensate for risk
             melee_range = 70  # Increased from 50
             melee_height = self.rect.height + 20  # Slightly taller hitbox
@@ -1234,6 +1252,11 @@ class Player:
         if self.on_ground and self.character.can_fly:
             self.fly_energy = min(self.max_fly_energy, self.fly_energy + 0.5)
             self.is_flying = False
+
+        # Regenerate mana over time (ranged attack resource)
+        if self.character.attack_type == 'ranged':
+            mana_regen = self.mana_regen_rate * (dt / 1000.0)  # dt is in ms
+            self.mana = min(self.max_mana, self.mana + mana_regen)
 
         # --- APPLY MOVEMENT ---
         # Store if we were on ground before moving
@@ -1650,6 +1673,20 @@ class Player:
             energy_width = int(w * (self.fly_energy / self.max_fly_energy))
             pygame.draw.rect(screen, LIGHT_BLUE, (screen_x, screen_y - 8, energy_width, 4))
 
+        # Mana bar for ranged characters (blue bar showing ammo)
+        if self.character.attack_type == 'ranged':
+            bar_y = screen_y - 8
+            pygame.draw.rect(screen, (40, 40, 60), (screen_x, bar_y, w, 4))  # Background
+            mana_width = int(w * (self.mana / self.max_mana))
+            # Color changes from blue to red when low
+            if self.mana < 20:
+                mana_color = (200, 50, 50)  # Red - can't shoot!
+            elif self.mana < 40:
+                mana_color = (200, 150, 50)  # Orange - low
+            else:
+                mana_color = (80, 150, 255)  # Blue - good
+            pygame.draw.rect(screen, mana_color, (screen_x, bar_y, mana_width, 4))
+
         # Special cooldown indicator
         if self.special_cooldown > 0:
             cooldown_pct = self.special_cooldown / SPECIAL_COOLDOWN
@@ -1685,13 +1722,18 @@ class Player:
         moving = abs(self.vel_x) > 0.5
         jumping = not self.on_ground
 
-        # Animation variables
-        run_cycle = math.sin(t / 80) if moving else 0
-        bounce = abs(math.sin(t / 100)) * 2 if moving else 0
+        # Animation variables - more dynamic!
+        run_cycle = math.sin(t / 70) if moving else 0
+        bounce = abs(math.sin(t / 90)) * 3 if moving else 0
 
-        # Dynamic pose - lean forward when running
-        lean = 3 if moving else 0
+        # Dynamic pose - lean forward when running (more pronounced)
+        lean = 5 if moving else 0
         body_offset_x = lean * dir
+
+        # Jump pose adjustments
+        if jumping:
+            lean = 2
+            body_offset_x = lean * dir
 
         # Shadow
         shadow_w = w - 8 if not jumping else w - 16
@@ -1706,11 +1748,17 @@ class Player:
         # === LEGS (small, simple) ===
         leg_y = y + int(h * 0.68)
         leg_h = int(h * 0.28)
-        leg_spread = 8 if moving else 4
+        leg_spread = 12 if moving else 5  # Wider spread when running
 
-        # Running animation - alternate legs
-        left_leg_y = leg_y + int(run_cycle * 6)
-        right_leg_y = leg_y - int(run_cycle * 6)
+        # Running animation - alternate legs (more dynamic)
+        left_leg_y = leg_y + int(run_cycle * 10)
+        right_leg_y = leg_y - int(run_cycle * 10)
+
+        # Jump legs tucked
+        if jumping:
+            leg_spread = 6
+            left_leg_y = leg_y - 4
+            right_leg_y = leg_y - 4
 
         # Left leg
         pygame.draw.ellipse(screen, (50, 50, 60), (x + w//2 - leg_spread - 6, left_leg_y, 10, leg_h))

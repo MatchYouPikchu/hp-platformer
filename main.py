@@ -9,6 +9,7 @@ if sys.platform == "darwin":
     os.environ.setdefault("SDL_AUDIODRIVER", "coreaudio")
 
 import pygame
+import math
 from settings import *
 from game_states import StateManager, GameState, Difficulty
 from characters import CHARACTER_ORDER
@@ -61,6 +62,96 @@ class DamagePopup:
         screen.blit(text_surf, (screen_x, screen_y))
 
 
+class CheckpointNotification:
+    """Large notification that appears when reaching a checkpoint."""
+
+    def __init__(self, checkpoint_name):
+        self.name = checkpoint_name
+        self.lifetime = 2500  # ms - longer display time
+        self.age = 0
+        self.active = True
+
+    def update(self, dt):
+        self.age += dt
+        if self.age >= self.lifetime:
+            self.active = False
+
+    def draw(self, screen):
+        if not self.active:
+            return
+        # Fade in for first 300ms, stay solid, fade out for last 500ms
+        if self.age < 300:
+            alpha = int(255 * (self.age / 300))
+        elif self.age > self.lifetime - 500:
+            alpha = int(255 * ((self.lifetime - self.age) / 500))
+        else:
+            alpha = 255
+
+        # Draw "CHECKPOINT" header
+        font_large = pygame.font.Font(None, 48)
+        font_name = pygame.font.Font(None, 36)
+
+        header = font_large.render("CHECKPOINT", True, (50, 255, 50))
+        name_text = font_name.render(self.name, True, (255, 255, 255))
+
+        header.set_alpha(alpha)
+        name_text.set_alpha(alpha)
+
+        # Center on screen
+        header_x = SCREEN_WIDTH // 2 - header.get_width() // 2
+        name_x = SCREEN_WIDTH // 2 - name_text.get_width() // 2
+        y_base = SCREEN_HEIGHT // 3
+
+        # Draw with shadow
+        shadow = font_large.render("CHECKPOINT", True, (0, 0, 0))
+        shadow.set_alpha(alpha // 2)
+        screen.blit(shadow, (header_x + 2, y_base + 2))
+        screen.blit(header, (header_x, y_base))
+        screen.blit(name_text, (name_x, y_base + 50))
+
+
+class TutorialPrompt:
+    """Shows control hints for new players - fades out after a few seconds."""
+
+    def __init__(self):
+        self.age = 0
+        self.lifetime = 8000  # 8 seconds
+
+    def update(self, dt):
+        self.age += dt
+
+    def draw(self, screen):
+        if self.age > self.lifetime:
+            return
+
+        # Fade out in last 2 seconds
+        if self.age > self.lifetime - 2000:
+            alpha = int(255 * ((self.lifetime - self.age) / 2000))
+        else:
+            alpha = 255
+
+        font = pygame.font.Font(None, 32)
+
+        # Control hints
+        hints = [
+            "WASD or Arrow Keys - Move",
+            "W or Up - Jump",
+            "SPACE - Attack",
+            "E - Special Ability"
+        ]
+
+        y = SCREEN_HEIGHT - 120
+        for hint in hints:
+            text = font.render(hint, True, (255, 255, 255))
+            text.set_alpha(alpha)
+            # Shadow
+            shadow = font.render(hint, True, (0, 0, 0))
+            shadow.set_alpha(alpha // 2)
+            screen.blit(shadow, (22, y + 2))
+            screen.blit(text, (20, y))
+            y += 25
+
+
 class Game:
     """Main game class."""
 
@@ -81,6 +172,7 @@ class Game:
         self.players = []
         self.enemy_manager = None
         self.damage_popups = []  # Floating damage numbers
+        self.checkpoint_notifications = []  # Checkpoint reached notifications
 
     def run(self):
         """Main game loop."""
@@ -217,11 +309,17 @@ class Game:
         base_respawns = self.difficulty_settings['respawns']
         # Co-op gets more respawns
         self.respawns_remaining = base_respawns + (1 if self.state_manager.num_players == 2 else 0)
-        self.RESPAWN_DELAY = 4000  # 4 seconds to respawn
+        self.RESPAWN_DELAY = 1500  # 1.5 seconds - fast respawn like modern platformers
 
         # Reset damage popups
         self.damage_popups = []
-        
+
+        # Tutorial prompt for new players (only on level 1)
+        if self.state_manager.current_level == 1:
+            self.tutorial_prompt = TutorialPrompt()
+        else:
+            self.tutorial_prompt = None
+
     def start_next_level(self):
         """Start the next level, keeping player stats."""
         old_players = self.players
@@ -343,16 +441,19 @@ class Game:
         self.enemy_manager.update(self.level.platforms, self.players, dt, self.camera.x)
 
         # Check collisions and get hit events for feedback
-        hit_events = self.enemy_manager.check_collisions(self.players)
+        # Pass difficulty multiplier for enemy damage scaling
+        enemy_damage_mult = self.difficulty_settings.get('enemy_damage_mult', 1.0)
+        hit_events = self.enemy_manager.check_collisions(self.players, enemy_damage_mult)
 
         # Process hit events for combat feedback
         for x, y, damage, is_critical in hit_events:
             # Spawn damage popup
             color = (255, 100, 100) if is_critical else (255, 255, 100)
             self.damage_popups.append(DamagePopup(x, y - 20, damage, color))
-            # Screen shake for significant hits
-            if is_critical or damage >= 15:
-                self.camera.shake(magnitude=4, duration=80)
+            # Screen shake on ALL hits - scaled by damage for satisfying feedback
+            shake_magnitude = 2 + (damage // 8)  # Min 2, scales up with damage
+            shake_duration = 50 + (damage * 2)   # Longer shake for bigger hits
+            self.camera.shake(magnitude=shake_magnitude, duration=shake_duration)
             # Play hit sound
             self.audio.play_sound('hit')
 
@@ -361,7 +462,23 @@ class Game:
             popup.update(dt)
             if not popup.active:
                 self.damage_popups.remove(popup)
-        
+
+        # Check checkpoints and show notifications
+        newly_reached = self.level.check_checkpoints(self.players)
+        for cp_index, cp_name in newly_reached:
+            self.checkpoint_notifications.append(CheckpointNotification(cp_name))
+            self.audio.play_sound('level_complete')  # Reuse jingle for checkpoint
+
+        # Update checkpoint notifications
+        for notif in self.checkpoint_notifications[:]:
+            notif.update(dt)
+            if not notif.active:
+                self.checkpoint_notifications.remove(notif)
+
+        # Update tutorial prompt
+        if hasattr(self, 'tutorial_prompt') and self.tutorial_prompt:
+            self.tutorial_prompt.update(dt)
+
         # Check hazard collisions (spikes, lava)
         for hazard in self.level.hazards:
             hazard.update(dt)
@@ -370,10 +487,16 @@ class Game:
                     player.take_damage(hazard.damage)
         
         # Check for players falling into pits (below screen = instant death!)
+        # Track pit danger for visual warning
+        self.pit_danger = False
         for player in self.players:
-            if player.is_alive() and player.y > SCREEN_HEIGHT + 50:
-                # Fell into a pit - instant death!
-                player.health = 0
+            if player.is_alive():
+                # Warning zone - player is falling off screen
+                if player.y > SCREEN_HEIGHT - 80:
+                    self.pit_danger = True
+                # Death zone - give more buffer for fairness
+                if player.y > SCREEN_HEIGHT + 100:
+                    player.health = 0
 
         # Check goal (level complete or victory!)
         # If level has boss, must defeat boss first
@@ -464,6 +587,25 @@ class Game:
         # Draw damage popups
         for popup in self.damage_popups:
             popup.draw(self.screen, camera_x)
+
+        # Draw checkpoint notifications (centered, no camera offset)
+        for notif in self.checkpoint_notifications:
+            notif.draw(self.screen)
+
+        # Draw tutorial prompt (for new players)
+        if hasattr(self, 'tutorial_prompt') and self.tutorial_prompt:
+            self.tutorial_prompt.draw(self.screen)
+
+        # Draw pit danger warning (red flash at bottom of screen)
+        if hasattr(self, 'pit_danger') and self.pit_danger:
+            warning_surf = pygame.Surface((SCREEN_WIDTH, 30), pygame.SRCALPHA)
+            pulse = abs(math.sin(pygame.time.get_ticks() * 0.01)) * 100 + 100
+            warning_surf.fill((255, 0, 0, int(pulse)))
+            self.screen.blit(warning_surf, (0, SCREEN_HEIGHT - 30))
+            # Warning text
+            font = pygame.font.Font(None, 28)
+            text = font.render("DANGER!", True, (255, 255, 255))
+            self.screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT - 25))
 
         # Draw HUD with respawn info
         respawn_info = {

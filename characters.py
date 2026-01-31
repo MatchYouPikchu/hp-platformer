@@ -35,22 +35,24 @@ class CharacterData:
 
 # Character definitions
 CHARACTERS = {
+    # RANGED characters: Lower damage but safe, uses MANA (limited shots)
     'Harry': CharacterData(
         name='Harry',
         speed=5,
         health=100,
-        damage=15,
+        damage=12,  # Reduced: ranged = safe but weaker
         special_name='Patronus Charm',
         special_desc='Summons a stag to charge forward',
         color=VIVID_CRIMSON,
         secondary_color=VIVID_GOLD,
         attack_type='ranged'
     ),
+    # MELEE characters: Higher damage, unlimited attacks, must get close (risky)
     'Ron': CharacterData(
         name='Ron',
         speed=4,
         health=120,
-        damage=30,
+        damage=35,  # Increased: melee = risky but powerful
         special_name='Howler Shout',
         special_desc='Stuns and damages nearby enemies',
         color=VIVID_ORANGE,
@@ -61,7 +63,7 @@ CHARACTERS = {
         name='Hermione',
         speed=6,
         health=85,
-        damage=15,
+        damage=12,  # Reduced: ranged = safe but weaker
         special_name='Spell Barrage',
         special_desc='Rapid fire homing magical orbs',
         color=VIVID_PURPLE,
@@ -72,7 +74,7 @@ CHARACTERS = {
         name='Voldemort',
         speed=5,
         health=85,
-        damage=25,
+        damage=18,  # Reduced but still "powerful caster"
         special_name='Avada Kedavra',
         special_desc='Devastating green beam of doom',
         color=VIVID_DARK,
@@ -83,7 +85,7 @@ CHARACTERS = {
         name='Hagrid',
         speed=4,
         health=150,
-        damage=40,
+        damage=45,  # Increased: slow tank hits HARD
         special_name='Earthquake',
         special_desc='Smashes ground to clear the screen',
         color=VIVID_BROWN,
@@ -94,7 +96,7 @@ CHARACTERS = {
         name='Unicorn',
         speed=7,
         health=90,
-        damage=22,
+        damage=28,  # Increased: fast melee fighter
         special_name='Mystic Heal',
         special_desc='Heals allies and burns darkness',
         color=VIVID_WHITE,
@@ -106,7 +108,7 @@ CHARACTERS = {
         name='Dragon',
         speed=4,
         health=110,
-        damage=20,
+        damage=15,  # Reduced: ranged + flight = needs tradeoff
         special_name='Inferno Breath',
         special_desc='Unleashes a wall of rising fire',
         color=VIVID_RED,

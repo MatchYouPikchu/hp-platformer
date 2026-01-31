@@ -511,33 +511,6 @@ class UI:
         # Value text (right side)
         self.draw_text(screen, str(value), self.font_small, WHITE, bar_x + bar_w + 15, y)
 
-    def draw_stat_bar(self, screen, label, value, max_value, x, y, color):
-        """Draw a polished stat bar."""
-        bar_width = 200
-        bar_height = 22
-        center_x = SCREEN_WIDTH // 2
-
-        # Label
-        self.draw_text(screen, label, self.font_small, WHITE, center_x - 150, y)
-
-        # Bar background with border
-        bar_x = center_x - 50
-        pygame.draw.rect(screen, (30, 30, 40), (bar_x, y, bar_width, bar_height), border_radius=5)
-
-        # Bar fill with highlight
-        fill_width = int(bar_width * (value / max_value))
-        if fill_width > 0:
-            pygame.draw.rect(screen, color, (bar_x, y, fill_width, bar_height), border_radius=5)
-            # Highlight on top half
-            highlight = tuple(min(255, c + 60) for c in color)
-            pygame.draw.rect(screen, highlight, (bar_x, y, fill_width, bar_height // 2), border_radius=5)
-        
-        # Border
-        pygame.draw.rect(screen, color, (bar_x, y, bar_width, bar_height), 2, border_radius=5)
-
-        # Value text
-        self.draw_text(screen, str(value), self.font_small, WHITE, bar_x + bar_width + 15, y + 2)
-
     def draw_hud(self, screen, players, enemy_manager, camera, level_num=1, respawn_info=None, level=None):
         """Draw polished in-game HUD."""
         # Semi-transparent HUD background strips
@@ -1047,9 +1020,12 @@ class UI:
         """Reset selection index."""
         self.selected_index = 0
 
-    def draw_story_intro(self, screen, area_data):
+    def draw_story_intro(self, screen, state_manager):
         """Draw a story intro screen for a new area."""
         self.anim_timer += 1
+        
+        # Get area data from state manager
+        area_data = state_manager.current_story_area or {}
         
         # Dark overlay with gradient
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
