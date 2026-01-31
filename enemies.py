@@ -164,6 +164,10 @@ class Enemy:
         self.walk_frame = 0
         self.hurt_timer = 0
 
+        # Knockback system - prevents AI control during stun
+        self.knockback_timer = 0
+        self.knockback_vel = 0
+
     def activate(self, camera_x):
         """Activate enemy when on or near screen."""
         screen_x = self.x - camera_x
@@ -281,6 +285,13 @@ class Enemy:
         if self.hurt_timer > 0:
             self.hurt_timer -= dt
 
+        # Update knockback timer and apply knockback friction
+        if self.knockback_timer > 0:
+            self.knockback_timer -= dt
+            # Apply friction to knockback velocity
+            self.knockback_vel *= 0.9
+            self.vel_x = self.knockback_vel
+
         # Update shoot cooldown for ranged enemies
         if hasattr(self, 'shoot_cooldown') and self.shoot_cooldown > 0:
             self.shoot_cooldown -= dt
@@ -306,6 +317,21 @@ class Enemy:
                     self.vel_y = MAX_FALL_SPEED
                 self.y += self.vel_y
                 self.rect.y = int(self.y)
+                self.check_collisions(platforms)
+            return
+
+        # Skip AI movement if stunned from knockback
+        if self.knockback_timer > 0:
+            # Still apply physics but no AI control
+            if not self.flying:
+                self.vel_y += GRAVITY
+                if self.vel_y > MAX_FALL_SPEED:
+                    self.vel_y = MAX_FALL_SPEED
+            self.x += self.vel_x
+            self.y += self.vel_y
+            self.rect.x = int(self.x)
+            self.rect.y = int(self.y)
+            if not self.flying:
                 self.check_collisions(platforms)
             return
 
@@ -595,12 +621,18 @@ class Enemy:
         return self.damage
 
     def take_damage(self, amount, knockback_direction=0):
-        """Take damage and apply knockback."""
+        """Take damage and apply knockback with stun."""
         self.health -= amount
         self.hurt_timer = 200  # Flash when hurt
-        # Apply knockback
+
+        # Apply knockback with stun period (prevents AI from overriding)
         if knockback_direction != 0:
-            self.vel_x = 5 * knockback_direction
+            # Stronger knockback that scales with damage
+            knockback_strength = 8 + (amount // 10)  # Base 8, +1 per 10 damage
+            self.knockback_vel = knockback_strength * knockback_direction
+            self.knockback_timer = 250  # 250ms stun - can't move during this time
+            self.vel_x = self.knockback_vel
+
         return self.health <= 0
 
     def is_alive(self):
